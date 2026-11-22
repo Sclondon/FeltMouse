@@ -5,3 +5,4 @@ tests/shots_*/
 tests/gif_frames/
 build/*.import
 art_src/reference_photo.jpg
+media/

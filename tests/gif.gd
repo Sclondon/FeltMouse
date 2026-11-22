@@ -3,12 +3,15 @@ extends SceneTree
 ##   godot --path . --audio-driver Dummy --resolution 432x768 -s res://tests/gif.gd -- --out=<dir>
 ## then ffmpeg -framerate 20 -i <dir>/f_%03d.png ... (see README)
 
-const FPS := 20.0
+const FPS := 20.0  ## --fps= changes it
 
 
 func _initialize() -> void:
 	var out := "gif_frames"
+	var fps := FPS
 	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--fps="):
+			fps = float(a.substr(6))
 		if a.begins_with("--out="):
 			out = a.substr(6)
 	DirAccess.make_dir_recursive_absolute(out)
@@ -19,10 +22,10 @@ func _initialize() -> void:
 	main.playing = false
 	main.yaw = 0.35
 	main.pitch = 0.25
-	main.distance = 5.2
-	var count := int(main.LOOP * FPS)
+	main.distance = 5.6
+	var count := int(main.LOOP * fps)
 	for i in count:
-		main.clock = i / FPS
+		main.clock = i / fps
 		main._pose(main.clock)
 		await process_frame
 		await RenderingServer.frame_post_draw
