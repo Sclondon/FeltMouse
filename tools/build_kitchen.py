@@ -708,13 +708,9 @@ for i, ((px, py), (w, d, h), turn, wrap, ribbon) in enumerate(PRESENTS):
 blocks(11.7, -0.3, 0.85)
 blocks(13.0, -0.7, 0.75)
 
-# a lit candle on a saucer, at the right end
+# a lit candle, at the right end: GameCommon's candle component, stood here by the game (scripts/main.gd)
 X, Y = 13.9, 1.5
-put(lathe("CandleSaucer", [(0, 0), (0.55, 0), (0.8, 0.12), (0.8, 0.17), (0.5, 0.07), (0, 0.07)], "ceramic", segs=28), X, Y)
-put(lathe("Candle", [(0, 0.06), (0.36, 0.06), (0.36, 1.2), (0.3, 1.27), (0.12, 1.2), (0, 1.2)], "wax", segs=24), X, Y)
-tube("CandleWick", [(X, Y, 1.2), (X, Y, 1.36)], 0.02, "wick", segs=5)
-put(lathe("CandleFlame", [(0, 1.33), (0.09, 1.42), (0.07, 1.56), (0, 1.75)], "glow_flame", segs=12), X, Y)
-LAMPS.append(("Lamp_glow_flame_candle", Vector((X, Y, 1.7))))
+CANDLE_AT = (X, Y)
 blocks(X, Y, 0.8)
 
 # ---------------------------------------------------------------- lamps (empties the game hangs real lights on)
@@ -736,6 +732,7 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
                "boxes": [[round(x0, 3), round(-y1, 3), round(x1, 3), round(-y0, 3)] for (x0, y0, x1, y1) in BOXES],
                # each swag of the garland as points, for the pine needles the game grows along it
                "garland": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in GARLAND],
+               "candle": [CANDLE_AT[0], 0.0, -CANDLE_AT[1]],
                "light_strings": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in LIGHT_STRINGS],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are
                "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,

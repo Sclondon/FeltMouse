@@ -388,6 +388,15 @@ func _build_stage() -> void:
 		add_child(string)
 		string.hang(line)
 
+	# the candle: GameCommon's candle, a cream pillar ringed with holly, part burnt down, with its own flickering light
+	if _walk.has("candle"):
+		var at: Array = _walk["candle"]
+		var candle := Candle.make(Candle.Kind.HOLLY, Candle.Wax.CREAM, 12.5)  # (12.5 of this game's units to a metre)
+		candle.burnt = 0.25
+		candle.low_detail = phone
+		candle.position = Vector3(at[0], at[1], at[2])
+		add_child(candle)
+
 	# a snow storm blowing past outside the window, between the glass and the painted night
 	if _walk.has("window"):
 		var w: Dictionary = _walk["window"]
