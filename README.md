@@ -18,6 +18,8 @@ Godot 4.7, GL Compatibility, portrait. Placeholder name.
   material name (`felt_*`, `fleece_*`) and draws it as a matte skin plus 14 shells of fuzz; `LOOKS` in that script
   sets fuzz length, fibre density and loose fibres per material (the mug is the hairiest). `bead_*` parts are shiny
   plastic, `thread_*` plain thread.
+- **Rogue strings and loops** are real hair-thin geometry (`fibre_*` materials), scattered over the felt parts by `shed()`
+  at the end of `tools/build_mouse.py`: each call gives a part its number of loose strings and of pulled loops.
 
 ## Checking
 

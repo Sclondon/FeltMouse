@@ -323,6 +323,117 @@ for i in range(141):
 tube("WaferSwirl", helix, 0.017, "felt_candy_white", segs=8)
 ellipsoid("WaferTop", W1, (0.036, 0.036, 0.02), "felt_candy_white", subsurf=0)
 
+# ---------------------------------------------------------------- rogue strings and loops
+# Real felt sheds: long loose fibres that curl away from it, and little loops pulled out of the surface.
+# Each is a thin three-sided tube rooted at a random point of a felt part; one mesh of them per colour.
+import random
+
+random.seed(7)
+COL.update({
+    "fibre_white": (0.97, 0.96, 0.93),
+    "fibre_brown": (0.62, 0.42, 0.24),
+    "fibre_red": (0.90, 0.14, 0.14),
+})
+FIBRE_R = 0.0017
+DG = bpy.context.evaluated_depsgraph_get()
+
+
+def strand_tube(bm, pts, radius):
+    tang = [(pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized() for i in range(len(pts))]
+    n = tang[0].orthogonal().normalized()
+    rings = []
+    for i, p in enumerate(pts):
+        t = tang[i]
+        n = (n - t * n.dot(t)).normalized()
+        bn = t.cross(n)
+        rings.append([bm.verts.new(p + (n * math.cos(math.tau * k / 3) + bn * math.sin(math.tau * k / 3)) * radius)
+                      for k in range(3)])
+    for a, b in zip(rings, rings[1:]):
+        for k in range(3):
+            l = (k + 1) % 3
+            bm.faces.new((a[k], b[k], b[l], a[l]))
+    bm.faces.new(list(reversed(rings[0])))
+    bm.faces.new(rings[-1])
+
+
+def rogue_string(p, n):
+    """A loose fibre: leaves the felt at a slant, curls one way, and sags."""
+    t = n.orthogonal().normalized()
+    t = (Matrix.Rotation(random.uniform(0, math.tau), 3, n) @ t)
+    d = (n + t * random.uniform(0.0, 0.9)).normalized()
+    bend = d.cross(Matrix.Rotation(random.uniform(0, math.tau), 3, d) @ d.orthogonal()).normalized()
+    length = 0.03 + 0.15 * random.random() ** 2.2
+    k = random.uniform(4.0, 45.0)  # curl: 1 / the radius it bends on
+    sag = random.uniform(0.5, 3.0)
+    wob = random.uniform(0.0, 0.006)
+    pts = []
+    for i in range(11):
+        s = length * i / 10
+        q = p - n * 0.004 + d * (math.sin(k * s) / k) + bend * ((1.0 - math.cos(k * s)) / k)
+        q += Vector((0, 0, -sag * s * s)) + t * (wob * math.sin(s * 140.0))
+        pts.append(q)
+    return pts
+
+
+def loopy(p, n):
+    """A pulled loop: both feet in the felt, a round eye standing off it, leaning a little."""
+    t = Matrix.Rotation(random.uniform(0, math.tau), 3, n) @ n.orthogonal().normalized()
+    side = n.cross(t)
+    r = random.uniform(0.010, 0.032)
+    tall = random.uniform(1.0, 1.7)
+    lean = random.uniform(-0.6, 0.6)
+    pts = []
+    for i in range(15):
+        a = math.radians(28 + (360 - 56) * i / 14)
+        up = (0.85 - math.cos(a)) * r * tall
+        pts.append(p + n * up + t * (math.sin(a) * r) + side * (lean * up + 0.25 * r * math.sin(a * 0.5)))
+    return pts
+
+
+def shed(name, sources, material, strings, loops, keep=None):
+    """sources: object names. strings / loops: how many of each over all of them, spread by area."""
+    tris = []
+    for src in sources:
+        ev = bpy.data.objects[src].evaluated_get(DG)
+        me = ev.to_mesh()
+        me.calc_loop_triangles()
+        for lt in me.loop_triangles:
+            a, b, c = (me.vertices[i].co.copy() for i in lt.vertices)
+            tris.append((lt.area, a, b, c, lt.normal.copy()))
+        ev.to_mesh_clear()
+    weights = [x[0] for x in tris]
+    bm = bmesh.new()
+    made = 0
+    for kind, count in ((rogue_string, strings), (loopy, loops)):
+        done = 0
+        while done < count:
+            _, a, b, c, n = random.choices(tris, weights)[0]
+            u, v = random.random(), random.random()
+            if u + v > 1:
+                u, v = 1 - u, 1 - v
+            p = a + (b - a) * u + (c - a) * v
+            if keep and not keep(p, n):
+                continue
+            strand_tube(bm, kind(p, n), FIBRE_R)
+            done += 1
+            made += 1
+    print("SHED", name, made)
+    return finish(name, bm, material)
+
+
+def flat_r(p):
+    return math.hypot(p.x, p.y)
+
+
+# the mug is the hairiest; nothing on its hidden top and bottom
+shed("FibresMug", ["Mug", "MugHandle"], "fibre_brown", 300, 110, lambda p, n: abs(n.z) < 0.5 and 0.03 < p.z < 0.58)
+shed("FibresCream", ["CreamLower", "CreamUpper", "MugFoot"], "fibre_white", 110, 90,
+     lambda p, n: (p.z < 0.1 or n.z > -0.2) and (p.z < 0.1 or flat_r(p) > 0.24))
+shed("FibresMouse", ["Body", "Head", "EarL", "EarR", "ArmL", "ArmR"], "fibre_white", 120, 60,
+     lambda p, n: p.z > 0.84 and not (p.y < -0.12 and 1.1 < p.z < 1.36 and abs(p.x) < 0.14))
+shed("FibresScarf", ["Scarf"], "fibre_red", 45, 30)
+shed("FibresWafer", ["Wafer"], "fibre_brown", 25, 10, lambda p, n: p.z > 0.85)
+
 # ---------------------------------------------------------------- save and export
 for o in SCENE.objects:
     o.select_set(True)

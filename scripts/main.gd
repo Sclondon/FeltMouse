@@ -53,6 +53,12 @@ func _dress(mi: MeshInstance3D) -> void:
 		if kind.begins_with("bead"):
 			src.roughness = 0.12
 			src.metallic_specular = 0.8
+		elif kind.begins_with("fibre"):
+			# the loose strings and loops: hair-thin, so they throw no shadow and catch light from any side
+			src.roughness = 1.0
+			src.diffuse_mode = BaseMaterial3D.DIFFUSE_LAMBERT_WRAP
+			src.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		else:
 			src.roughness = 1.0
 		return
