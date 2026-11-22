@@ -24,24 +24,45 @@ const LOOKS := {
 	"fleece_white": {"fuzz_length": 0.020, "fibre_density": 300.0, "fuzz_fill": 0.8, "stray": 0.01},
 }
 
-## The loop, in seconds: under the foam, burst out, fall, land, stand, sit down in, sit, duck under.
-const LOOP := 8.6
+## The loop, in seconds: under the foam, burst out, fall, land, pace across the foam and back, lift and
+## toss the candy, sit down into the foam, sit, duck under.
+const LOOP := 12.2
 const T_POP := 1.6
 const T_PEAK := 2.0
 const T_LAND := 2.35
-const T_SETTLE := 2.95
-const T_SINK := 5.2
-const T_SAT := 6.0
-const T_DUCK := 7.1
-const T_GONE := 7.6
+const T_WALK := 2.95
+const T_TOSS := 6.35    ## arms start up
+const T_THROW := 6.8    ## the candy leaves his hands
+const T_CATCH := 7.6
+const T_LOWER := 7.85   ## arms start down
+const T_SINK := 8.6
+const T_SAT := 9.4
+const T_DUCK := 10.5
+const T_GONE := 11.0
 const STAND := 0.42   ## how far he is lifted to stand on the foam (seated, as in the photo, is 0)
-const PEAK := 0.8    ## the top of his jump
+const PEAK := 0.8     ## the top of his jump
 const UNDER := -0.04  ## under the foam, shrunk to SMALL so that he fits inside the mug
 const SMALL := 0.45
+const STEP := 0.08        ## the length of one of his steps
+const ARMS_UP := 1.6      ## how far the arms swing to hold the candy over his head, radians
+const TOSS_HEIGHT := 0.5  ## how high the candy flies above his raised hands
+const ARMS_STRETCH := 0.45  ## how much longer the arms get as they straighten upward
+const SIDE := PI / 2.0
+## The pacing between T_WALK and T_TOSS. A walk: [from s, to s, true, from where, to where, facing].
+## A turn on the spot: [from s, to s, false, where, facing from, facing to].
+const WALK := [
+	[2.95, 3.25, false, 0.0, 0.0, -SIDE],
+	[3.25, 3.75, true, 0.0, -0.16, -SIDE],
+	[3.75, 4.15, false, -0.16, -SIDE, SIDE],
+	[4.15, 5.15, true, -0.16, 0.16, SIDE],
+	[5.15, 5.55, false, 0.16, SIDE, -SIDE],
+	[5.55, 6.05, true, 0.16, 0.0, -SIDE],
+	[6.05, 6.35, false, 0.0, -SIDE, 0.0],
+]
 
 var yaw := 0.35
 var pitch := 0.22
-var distance := 5.4
+var distance := 5.6
 var idle := true  ## turns slowly by itself until touched
 var playing := true
 var clock := 0.0  ## where in the loop he is
@@ -54,6 +75,10 @@ var _mouse: Node3D
 var _legs: Array[Node3D] = []
 var _tail: Node3D
 var _tail_rest: Basis
+var _arms: Node3D
+var _candy: Node3D
+var _candy_rest: Vector3
+var _arms_rest: Vector3
 
 
 func _ready() -> void:
@@ -66,6 +91,10 @@ func _ready() -> void:
 	_legs = [model.find_child("LegPivotL", true, false), model.find_child("LegPivotR", true, false)]
 	_tail = model.find_child("TailPivot", true, false)
 	_tail_rest = _tail.basis
+	_arms = model.find_child("ArmsPivot", true, false)
+	_candy = model.find_child("CandyPivot", true, false)
+	_candy_rest = _candy.position
+	_arms_rest = _arms.position
 	_pose(clock)
 	_place_camera()
 
@@ -173,7 +202,13 @@ func _pose(t: float) -> void:
 	var lift := UNDER   # how high MouseRoot is
 	var size := SMALL
 	var squash := 1.0   # under 1 is squashed flat, over 1 stretched tall
-	var kick := 0.0     # legs swung forward (+) or trailing back (-), radians
+	var kick := 0.0     # both legs swung forward (+) or trailing back (-), radians
+	var stride := 0.0   # legs scissored for walking: left forward (+), right forward (-)
+	var across := 0.0   # where he is on the foam, left (-) to right (+)
+	var face := 0.0     # which way he faces: 0 the front, a quarter turn either way to walk
+	var roll := 0.0     # the waddle
+	var raise := 0.0    # arms: 0 down holding the candy in front, 1 up over his head
+	var flight := -1.0  # the candy in the air: 0 thrown .. 1 caught (-1 it is in his hands)
 	var seen := true
 	var stir := 0.22    # the foam is never quite still
 	var swell := 0.0
@@ -197,19 +232,57 @@ func _pose(t: float) -> void:
 		size = 1.0
 		kick = 0.7 * sin(u * PI)
 		stir = 0.8
-	elif t < T_SETTLE:
-		var u := (t - T_LAND) / (T_SETTLE - T_LAND)
+	elif t < T_WALK:
+		var u := (t - T_LAND) / (T_WALK - T_LAND)
 		lift = STAND
 		size = 1.0
 		squash = 1.0 - 0.2 * sin(u * PI) * (1.0 - u) + 0.05 * sin(u * TAU) * u
 		stir = lerpf(0.8, 0.3, u)
 		swell = -0.05 * (1.0 - 0.5 * u)
-	elif t < T_SINK:
-		# standing on the foam, bobbing, his feet pressing a hollow into it
-		lift = STAND + 0.012 * sin((t - T_SETTLE) * 5.0)
+	elif t < T_TOSS:
+		# pacing across the foam and back: turn, walk, turn about, walk, turn about, walk, face front
+		lift = STAND
 		size = 1.0
 		swell = -0.025
-		kick = 0.06 * sin((t - T_SETTLE) * 5.0)
+		stir = 0.3
+		for leg: Array in WALK:
+			if t >= leg[0] and t < leg[1]:
+				var u: float = (t - leg[0]) / (leg[1] - leg[0])
+				var step := 0.0  # half a turn of this is one step
+				if leg[2]:
+					across = lerpf(leg[3], leg[4], u)
+					face = leg[5]
+					step = PI * u * absf(leg[4] - leg[3]) / STEP
+					stride = 0.34 * sin(step)
+				else:
+					across = leg[3]
+					face = lerpf(leg[4], leg[5], smoothstep(0.0, 1.0, u))
+					step = TAU * u
+					stride = 0.16 * sin(step)
+				lift += 0.016 * absf(sin(step))
+				roll = 0.07 * sin(step)
+				raise = 0.03 * sin(step * 2.0)
+	elif t < T_SINK:
+		# the candy: up over his head, thrown, turning over once in the air, caught, brought down
+		lift = STAND
+		size = 1.0
+		swell = -0.025
+		if t < T_THROW:
+			var u := (t - T_TOSS) / (T_THROW - T_TOSS)
+			raise = lerpf(-0.07 * sin(u * PI), 1.0, u * u * (3.0 - 2.0 * u))
+			squash = 1.0 - 0.05 * sin(u * PI) + 0.06 * u
+		elif t < T_CATCH:
+			flight = (t - T_THROW) / (T_CATCH - T_THROW)
+			raise = 1.0 - 0.14 * sin(flight * PI)
+			squash = 1.06 - 0.06 * smoothstep(0.0, 0.3, flight)
+		elif t < T_LOWER:
+			var u := (t - T_CATCH) / (T_LOWER - T_CATCH)
+			raise = 1.0 - 0.12 * sin(u * PI)
+			squash = 1.0 - 0.07 * sin(u * PI)
+		else:
+			var u := clampf((t - T_LOWER) / 0.5, 0.0, 1.0)
+			raise = 1.0 - smoothstep(0.0, 1.0, u)
+			lift += 0.012 * sin((t - T_LOWER) * 5.0) * u
 	elif t < T_SAT:
 		var u := smoothstep(0.0, 1.0, (t - T_SINK) / (T_SAT - T_SINK))
 		lift = lerpf(STAND, 0.0, u)
@@ -230,12 +303,28 @@ func _pose(t: float) -> void:
 		stir = 0.5 - 0.28 * (t - T_GONE) / (LOOP - T_GONE)
 
 	_mouse.visible = seen
-	_mouse.position = Vector3(0.0, lift, 0.0)
+	_mouse.position = Vector3(across, lift, 0.0)
 	var wide := size / sqrt(squash)
-	_mouse.scale = Vector3(wide, size * squash, wide)
-	for leg in _legs:
-		leg.rotation = Vector3(kick, 0.0, 0.0)
+	_mouse.basis = (Basis(Vector3.UP, face) * Basis(Vector3.BACK, roll)).scaled_local(Vector3(wide, size * squash, wide))
+	_legs[0].rotation = Vector3(kick - stride, 0.0, 0.0)
+	_legs[1].rotation = Vector3(kick + stride, 0.0, 0.0)
 	_tail.basis = Basis(Vector3.UP, 0.3 * sin(t * 6.0)) * Basis(Vector3.RIGHT, -0.5 * kick) * _tail_rest
+
+	# his arms swing up as one from the shoulders, and the candy goes with his hands until it is thrown
+	# (the bowed wire straightens as it goes up, and his shoulders shrug: that is what gets the candy clear of his nose
+	# and above his head on such short arms)
+	var swing := Basis(Vector3.RIGHT, -raise * ARMS_UP)
+	var reach := 1.0 + ARMS_STRETCH * smoothstep(0.0, 0.45, raise)
+	var reaching := swing * Basis.from_scale(Vector3(1.0, reach, reach))
+	_arms.position = _arms_rest + Vector3.UP * (0.08 * clampf(raise, 0.0, 1.0))
+	_arms.basis = reaching
+	var held := _arms.position + reaching * (_candy_rest - _arms_rest)
+	if flight < 0.0:
+		_candy.position = held
+		_candy.basis = swing
+	else:
+		_candy.position = held + Vector3.UP * (4.0 * TOSS_HEIGHT * flight * (1.0 - flight))
+		_candy.basis = swing * Basis(Vector3.RIGHT, -TAU * flight)
 
 	# splash rings run outward from where he bursts out, where he lands and where he ducks under
 	var ring := 0.0
@@ -254,7 +343,7 @@ func _pose(t: float) -> void:
 
 
 func _place_camera() -> void:
-	var target := Vector3(0.0, 1.1, 0.0)
+	var target := Vector3(0.0, 1.15, 0.0)
 	var dir := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	_camera.position = target + dir * distance
 	_camera.look_at(target)

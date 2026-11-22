@@ -3,11 +3,10 @@ extends SceneTree
 ##   godot --path . --audio-driver Dummy --resolution 540x960 -s res://tests/shots.gd -- --out=<dir>
 
 ## name, yaw, pitch, distance, seconds into the loop
-const VIEWS := [["t1_bubbling", 0.3, 0.45, 5.4, 1.5], ["t2_rising", 0.3, 0.25, 5.4, 1.75],
-	["t3_peak", 0.3, 0.25, 5.4, 2.0], ["t4_landing", 0.3, 0.25, 5.4, 2.5], ["t5_standing", 0.3, 0.25, 5.4, 4.0],
-	["t5_standing_side", 1.57, 0.2, 5.4, 4.0], ["t5_standing_back", 3.3, 0.3, 5.4, 4.0],
-	["t6_sinking", 0.3, 0.25, 5.4, 5.6], ["t7_seated", 0.3, 0.25, 5.4, 6.5], ["t8_ducking", 0.3, 0.35, 5.4, 7.4],
-	["legs_close", 0.6, 0.15, 2.6, 4.0], ["collar_front", 0.2, 0.2, 2.0, 6.5], ["collar_back", 2.6, 0.35, 2.0, 6.5], ["splash_top", 0.3, 0.9, 4.0, 1.95]]
+const VIEWS := [["walk_left", 0.3, 0.25, 5.6, 3.6], ["walk_right_a", 0.3, 0.25, 5.6, 4.5], ["walk_right_b", 0.3, 0.25, 5.6, 4.75],
+	["turn", 0.3, 0.25, 5.6, 5.3], ["arms_rising", 0.3, 0.25, 5.6, 6.6], ["arms_up", 0.3, 0.25, 5.6, 6.8],
+	["arms_up_side", 1.57, 0.2, 5.6, 6.8], ["arms_up_back", 3.4, 0.3, 5.6, 6.8], ["toss_peak", 0.3, 0.25, 5.6, 7.2],
+	["toss_side", 1.57, 0.2, 5.6, 7.05], ["mid_swing_side", 1.57, 0.2, 3.2, 6.58], ["arms_up_close", 0.5, 0.3, 3.2, 6.8]]
 
 
 func _initialize() -> void:

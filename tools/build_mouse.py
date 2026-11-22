@@ -288,14 +288,25 @@ ARMS = {
     "R": [(0.14, 0.02, 1.00), (0.30, -0.07, 0.98), (0.36, -0.25, 0.87), (0.27, -0.44, 0.775), (0.15, -0.50, 0.72)],
 }
 HANDS = {"L": (-0.20, -0.585, 0.675), "R": (0.10, -0.585, 0.672)}
+# the arms were a little too long (the user): everything from the shoulders out is drawn in toward them
+SHOULDERS = Vector((0, 0.02, 1.0))
+ARM_LENGTH = 0.85
+
+
+def drawn_in(p):
+    return SHOULDERS + (Vector(p) - SHOULDERS) * ARM_LENGTH
+
+
 for side in ("L", "R"):
-    path = spline(ARMS[side])
+    path = spline([drawn_in(p) for p in ARMS[side]])
+    HANDS[side] = drawn_in(HANDS[side])
     tube("Arm" + side, path, 0.021, "felt_white")
     end = path[-1]
-    tube("Hand" + side, [end, (end + Vector(HANDS[side])) / 2, HANDS[side]], 0.023, "felt_pink")
+    tube("Hand" + side, [end, (end + HANDS[side]) / 2, HANDS[side]], 0.023, "felt_pink")
 
 # ---------------------------------------------------------------- the candy: three sheets of felt, red white red
-CANDY = (Matrix.Translation((0.0, -0.385, 0.815)) @ Matrix.Rotation(math.radians(-7), 4, "Y")
+CANDY_AT = drawn_in((0.0, -0.385, 0.815))
+CANDY = (Matrix.Translation(CANDY_AT) @ Matrix.Rotation(math.radians(-7), 4, "Y")
          @ Matrix.Rotation(math.radians(52), 4, "X") @ Matrix.Scale(1.18, 4))
 
 
@@ -447,7 +458,7 @@ def flat_r(p):
 shed("FibresMug", ["Mug", "MugHandle"], "fibre_brown", 300, 110, lambda p, n: abs(n.z) < 0.5 and 0.03 < p.z < 0.58)
 shed("FibresCream", ["CreamLower", "CreamUpper", "MugFoot"], "fibre_white", 110, 90,
      lambda p, n: (p.z < 0.1 or n.z > -0.2) and (p.z < 0.1 or flat_r(p) > 0.24))
-shed("FibresMouse", ["Body", "Head", "EarL", "EarR", "ArmL", "ArmR"], "fibre_white", 120, 60,
+shed("FibresMouse", ["Body", "Head", "EarL", "EarR"], "fibre_white", 110, 55,
      lambda p, n: p.z > 0.68 and not (p.y < -0.12 and 1.1 < p.z < 1.36 and abs(p.x) < 0.14))
 shed("FibresScarf", ["Scarf"], "fibre_red", 22, 14, lambda p, n: n.x * p.x + n.y * (p.y - 0.03) > 0.0)
 shed("FibresWafer", ["Wafer"], "fibre_brown", 25, 10, lambda p, n: p.z > 0.85)
@@ -479,8 +490,13 @@ def hang(names, parent, at):
 ORIGIN = Vector((0, 0, 0))
 root = pivot("MouseRoot", ORIGIN)
 hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith(
-    ("Body", "Head", "Nose", "Eye", "Ear", "Whisker", "Scarf", "Arm", "Hand", "Candy", "FibresMouse", "FibresScarf"))],
+    ("Body", "Head", "Nose", "Eye", "Ear", "Whisker", "Scarf", "FibresMouse", "FibresScarf"))],
     root, ORIGIN)
+# both arms swing as one from the line of his shoulders; the candy has a pivot of its own so it can be thrown
+hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith(("Arm", "Hand"))],
+     pivot("ArmsPivot", SHOULDERS, root), SHOULDERS)
+hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith("Candy")],
+     pivot("CandyPivot", CANDY_AT, root), CANDY_AT)
 for side, sx in (("L", -1), ("R", 1)):
     at = Vector((0.09 * sx, 0.04, HIP_Z + 0.04))
     hang(["Leg" + side, "Foot" + side], pivot("LegPivot" + side, at, root), at)

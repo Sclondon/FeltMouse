@@ -3,9 +3,10 @@
 A little felt mouse sitting in a mug of cocoa, recreated from a photo (`art_src/reference_photo.jpg`), on a turntable.
 Godot 4.7, GL Compatibility, portrait. Placeholder name.
 
-- **What he does**: hides under the cocoa foam, pops out of it, lands standing on it (legs and tail on show), sits
-  back down into it as in the photo, then ducks under again; about nine seconds, on a loop. The foam bubbles, heaves
-  up before he bursts out and throws splash rings.
+- **What he does** (a loop of about twelve seconds): hides under the cocoa foam, pops out of it, lands standing on it,
+  paces across the foam and back, lifts his candy over his head, tosses it up (it turns over once) and catches it,
+  sits back down into the foam as in the photo, then ducks under again. The foam bubbles, heaves up before he bursts
+  out and throws splash rings.
 - **Turn it**: drag. **Closer / further**: pinch or mouse wheel. It turns slowly by itself until touched.
 - **Run**: open the project in Godot and press play, or
   `godot --path C:\Projects\FrontRangeInstituteGames\FeltMouse`.
@@ -22,7 +23,8 @@ Godot 4.7, GL Compatibility, portrait. Placeholder name.
   sets fuzz length, fibre density and loose fibres per material (the mug is the hairiest). `bead_*` parts are shiny
   plastic, `thread_*` plain thread.
 - **The animation** is all in `scripts/main.gd`, `_pose(t)`: the times of the loop are the `T_*` constants at the top.
-  He hangs from `MouseRoot` in the model, each leg from a `LegPivot` and the tail from `TailPivot`. The foam moves in
+  He hangs from `MouseRoot` in the model, each leg from a `LegPivot`, the tail from `TailPivot`, both arms from
+  `ArmsPivot` and the candy from `CandyPivot`. The pacing is the `WALK` table. The foam moves in
   the felt shader (the `foam_*` settings, zero on every other part). Legs and tail are not in the photo: Claude designed
   them in the toy's own manner (wrapped-wire limbs, pink felt ends).
 - **Rogue strings and loops** are real hair-thin geometry (`fibre_*` materials), scattered over the felt parts by `shed()`
