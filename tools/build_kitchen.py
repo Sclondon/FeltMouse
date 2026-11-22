@@ -438,11 +438,17 @@ def detail_pictures():
 detail_pictures()
 
 # ---------------------------------------------------------------- the garland and its lights, hung in swags
+# The rope of each swag is built here with its berries; its pine needles are GameCommon's pine tree fronds,
+# grown along the same line by the game (data/kitchen.json "garland" -> PineTree.garland in scripts/main.gd).
+# The lights are a string of their own, looped loosely under and over the garland: bulbs at uneven gaps, each
+# hanging its own way, in no set order of colours.
 HOOKS = [LEFT - 2.5, -7.9, -4.3, -0.7, WIN_L - 0.5, WIN_R + 0.5, 11.6, RIGHT + 2.5]
 HOOK_Z = [5.7, 5.7, 5.7, 5.7, 5.9, 5.9, 5.7, 5.7]
 bulb = 0
 GLOWS = ["glow_red", "glow_green", "glow_blue", "glow_yellow", "glow_pink"]
-LAMPS = []  # where the game puts a real light: (name, colour name, place)
+LAMPS = []  # where the game puts a real light: (name, place)
+GARLAND = []  # each swag's line, for the game to grow needles along
+last_colour = ""
 for s in range(len(HOOKS) - 1):
     over_window = HOOKS[s] > WIN_L - 1 and HOOKS[s + 1] < WIN_R + 1
     if over_window:
@@ -452,41 +458,43 @@ for s in range(len(HOOKS) - 1):
     line = []
     for i in range(25):
         t = i / 24
-        line.append(Vector((x0 + (x1 - x0) * t, WALL - 0.32, HOOK_Z[s] + (HOOK_Z[s + 1] - HOOK_Z[s]) * t
+        line.append(Vector((x0 + (x1 - x0) * t, WALL - 0.34, HOOK_Z[s] + (HOOK_Z[s + 1] - HOOK_Z[s]) * t
                             - sag * 4 * t * (1 - t))))
-    tube("GarlandWire%d" % s, line, 0.05, "wire", segs=5)
-    # the pine: bristly lumps along the swag, two greens
-    for g, mat_name in ((0, "pine"), (1, "pine_dark")):
-        bm = bmesh.new()
-        for i in range(len(line) * 3):
-            p = line[0].lerp(line[-1], 0)  # placeholder, replaced below
-            t = (i + 0.5 * g) / (len(line) * 3)
-            k = min(int(t * 24), 23)
-            p = line[k].lerp(line[k + 1], t * 24 - k)
-            tip = Vector((random.uniform(-1, 1), random.uniform(-0.9, 0.2), random.uniform(-1, 0.6))).normalized()
-            base = p + Vector((0, -0.05, 0))
-            length = random.uniform(0.35, 0.6)
-            side = tip.orthogonal().normalized() * 0.11
-            side2 = tip.cross(side).normalized() * 0.11
-            v = [bm.verts.new(base + side), bm.verts.new(base + side2), bm.verts.new(base - side), bm.verts.new(base - side2),
-                 bm.verts.new(base + tip * length)]
-            for a in range(4):
-                bm.faces.new((v[a], v[(a + 1) % 4], v[4]))
-            bm.faces.new((v[3], v[2], v[1], v[0]))
-        finish("Garland%d_%d" % (s, g), bm, mat_name, smooth=False)
-    # berries in the pine, and a big coloured bulb hanging under every few points
+    GARLAND.append(line)
+    tube("GarlandRope%d" % s, line, 0.07, "pine_dark", segs=6)
     for i in range(2, 24, 3):
         p = line[i]
-        ellipsoid("Berry%d_%d" % (s, i), p + Vector((random.uniform(-0.15, 0.15), -0.3, random.uniform(-0.1, 0.2))),
-                  (0.13, 0.13, 0.13), "berry", subsurf=0)
-    for i in range(1, 24, 3):
-        p = line[i] + Vector((0, -0.22, -0.42))
-        colour = GLOWS[bulb % len(GLOWS)]
-        tube("BulbCap%d" % bulb, [p + Vector((0, 0, 0.30)), p + Vector((0, 0, 0.52))], 0.09, "wire", segs=6)
-        ellipsoid("Bulb%d" % bulb, p, (0.17, 0.17, 0.32), colour, subsurf=0)
-        if bulb % 8 == 3:
-            LAMPS.append(("Lamp_%s_%d" % (colour, bulb), p + Vector((0, -0.4, 0))))
+        ellipsoid("Berry%d_%d" % (s, i), p + Vector((random.uniform(-0.2, 0.2), -0.32, random.uniform(-0.15, 0.2))),
+                  (0.12, 0.12, 0.12), "berry", subsurf=0)
+
+    # the light string: it follows the swag but dips below it in two or three loose loops of its own
+    loops = random.uniform(1.6, 2.9)
+    start = random.uniform(0, math.tau)
+    slack = random.uniform(0.35, 0.6)
+
+    def string_at(t):
+        k = min(int(t * 24), 23)
+        on_rope = line[k].lerp(line[k + 1], t * 24 - k)
+        dip = 0.12 + slack * (0.5 - 0.5 * math.cos(math.tau * loops * t + start)) * math.sin(math.pi * t) ** 0.5
+        return on_rope + Vector((0, -0.22 - 0.1 * math.sin(7 * t + start), -dip))
+
+    tube("LightString%d" % s, [string_at(i / 60) for i in range(61)], 0.028, "wire", segs=5)
+    t = random.uniform(0.04, 0.12)
+    while t < 0.97:
+        at = string_at(t)
+        colour = random.choice([g for g in GLOWS if g != last_colour])
+        last_colour = colour
+        lean = math.radians(random.uniform(-38, 38))
+        size = random.uniform(0.82, 1.22)
+        down = Vector((math.sin(lean), -0.25 * random.random(), -math.cos(lean))).normalized()
+        turn = Matrix.Rotation(lean, 3, "Y")
+        tube("BulbCap%d" % bulb, [at, at + down * 0.2 * size], 0.085 * size, "wire", segs=6)
+        ellipsoid("Bulb%d" % bulb, at + down * 0.46 * size, (0.16 * size, 0.16 * size, 0.30 * size), colour, rot=turn,
+                  subsurf=0)
+        if bulb % 6 == 2:
+            LAMPS.append(("Lamp_%s_%d" % (colour, bulb), at + down * 0.46 + Vector((0, -0.4, 0))))
         bulb += 1
+        t += random.uniform(0.10, 0.24)  # uneven gaps: some bulbs neighbours, some far apart
 
 # ---------------------------------------------------------------- the things on the counter, left to right
 # a bowl of oranges
@@ -690,6 +698,8 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
     # Godot: x the same, z = -y
     json.dump({"left": LEFT + 0.4, "right": RIGHT - 0.4, "front": -(FRONT + 0.4), "back": -(WALL - 0.55),
                "obstacles": [[round(x, 3), round(-y, 3), round(r, 3)] for (x, y, r) in OBSTACLES],
+               # each swag of the garland as points, for the pine needles the game grows along it
+               "garland": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in GARLAND],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are
                "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,
                           "night": -(WALL + DEEP)}}, f, indent=1)

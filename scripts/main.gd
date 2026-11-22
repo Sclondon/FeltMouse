@@ -343,6 +343,26 @@ func _build_stage() -> void:
 		glow.position = Vector3(x, 3.4, 2.4)
 		add_child(glow)
 
+	# the garland's needles: GameCommon's pine tree fronds grown along each swag of its rope
+	if _walk.has("garland"):
+		var pine := PineTree.new()
+		pine.fullness = 0.6
+		pine.sprigs = 2
+		pine.droop = 0.5
+		pine.needles_inner = Color(0.14, 0.38, 0.22)  # (lighter than a tree out of doors: the room is dark)
+		pine.needles_outer = Color(0.30, 0.62, 0.34)
+		pine.tips = Color(0.55, 0.80, 0.45)
+		var swag := 0
+		for points: Array in _walk["garland"]:
+			var line: Array[Vector3] = []
+			for p: Array in points:
+				line.append(Vector3(p[0], p[1], p[2]))
+			pine.seed = 11 + swag
+			var boughs := pine.garland_instance(line, 0.66, 12.0, 0.7)
+			(boughs.material_override as ShaderMaterial).set_shader_parameter("sway", 0.006)  # indoors: barely a stir
+			add_child(boughs)
+			swag += 1
+
 	# a snow storm blowing past outside the window, between the glass and the painted night
 	if _walk.has("window"):
 		var w: Dictionary = _walk["window"]
