@@ -6,3 +6,5 @@ tests/gif_frames/
 build/*.import
 art_src/reference_photo.jpg
 media/
+art_src/
+tools/look_k*/
