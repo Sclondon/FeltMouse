@@ -481,6 +481,40 @@ def detail_pictures():
     save_grey("stripes", stripes)
     # how much of each window pane the frost covers (the game makes the panes see-through from this)
     save_grey("frost_cover", frost_picture()[:, :, 3])
+    # snowflakes for the storm outside the window: four kinds on one sheet (2 x 2)
+    cell = 64
+    cy, cx = np.mgrid[0:cell, 0:cell]
+    px = (cx + 0.5) / cell * 2 - 1
+    py = (cy + 0.5) / cell * 2 - 1
+    rr = np.sqrt(px * px + py * py)
+
+    def stroke(ax, ay, bx, by, wide):
+        # how strongly each pixel is on the line from a to b
+        dx, dy = bx - ax, by - ay
+        t = np.clip(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy), 0, 1)
+        d = np.sqrt((px - ax - t * dx) ** 2 + (py - ay - t * dy) ** 2)
+        return np.clip(1.0 - d / wide, 0, 1)
+
+    soft = np.clip(1.0 - rr / 0.72, 0, 1) ** 1.4
+    star = np.clip(1.0 - rr / 0.2, 0, 1)
+    twig = star.copy()
+    for k in range(6):
+        a = math.tau * k / 6
+        ux, uy = math.cos(a), math.sin(a)
+        star = np.maximum(star, stroke(0, 0, ux * 0.82, uy * 0.82, 0.11))
+        twig = np.maximum(twig, stroke(0, 0, ux * 0.86, uy * 0.86, 0.085))
+        for side in (-1, 1):  # two barbs off each arm
+            b = a + side * math.tau / 6
+            twig = np.maximum(twig, stroke(ux * 0.5, uy * 0.5, ux * 0.5 + math.cos(b) * 0.26, uy * 0.5 + math.sin(b) * 0.26, 0.075))
+    clump = np.zeros((cell, cell))
+    for ox, oy, rad in ((-0.22, 0.1, 0.5), (0.25, 0.18, 0.42), (0.05, -0.28, 0.46)):
+        clump = np.maximum(clump, np.clip(1.0 - np.sqrt((px - ox) ** 2 + (py - oy) ** 2) / rad, 0, 1) ** 1.2)
+    sheet_a = np.zeros((cell * 2, cell * 2))
+    sheet_a[:cell, :cell] = soft
+    sheet_a[:cell, cell:] = star
+    sheet_a[cell:, :cell] = twig
+    sheet_a[cell:, cell:] = clump
+    save_grey("snowflakes", sheet_a * 1.25)  # (white is flake: the game turns the grey into see-through)
 
 
 detail_pictures()

@@ -221,6 +221,19 @@ func _picture(nm: String) -> Texture2D:
 	return _pictures[nm]
 
 
+## A white picture that is see-through where textures/<nm>.png is black (a sheet of sprites kept as plain greys).
+func _cut_out(nm: String) -> Texture2D:
+	var grey := (load("res://textures/%s.png" % nm) as Texture2D).get_image()
+	if grey.is_compressed():
+		grey.decompress()
+	var cut := Image.create(grey.get_width(), grey.get_height(), false, Image.FORMAT_RGBA8)
+	for py in grey.get_height():
+		for px in grey.get_width():
+			cut.set_pixel(px, py, Color(1.0, 1.0, 1.0, grey.get_pixel(px, py).r))
+	cut.generate_mipmaps()
+	return ImageTexture.create_from_image(cut)
+
+
 func _texture_kitchen(kitchen: Node) -> void:
 	var done := {}
 	for mi: MeshInstance3D in kitchen.find_children("*", "MeshInstance3D", true, false):
@@ -416,12 +429,26 @@ func _build_stage() -> void:
 		snow.scale_amount_min = 0.5
 		snow.scale_amount_max = 1.5
 		var flake := QuadMesh.new()
-		flake.size = Vector2(0.085, 0.085)
+		flake.size = Vector2(0.19, 0.19)
 		var white := StandardMaterial3D.new()
 		white.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		white.albedo_color = Color(0.86, 0.90, 1.0)
 		white.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 		white.billboard_keep_scale = true
+		# each flake is one of four pictures on textures/snowflakes.png (soft, a six-armed star, a barbed star, a clump),
+		# turned its own way ("The snowflakes should have sprites not just be squares", the user)
+		white.albedo_texture = _cut_out("snowflakes")
+		white.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		white.particles_anim_h_frames = 2
+		white.particles_anim_v_frames = 2
+		white.particles_anim_loop = false
+		white.render_priority = -1  # (drawn before the frosted panes they are seen through)
+		snow.anim_offset_min = 0.0
+		snow.anim_offset_max = 1.0
+		snow.angle_min = 0.0
+		snow.angle_max = 360.0
+		snow.angular_velocity_min = -90.0
+		snow.angular_velocity_max = 90.0
 		flake.material = white
 		snow.mesh = flake
 		add_child(snow)

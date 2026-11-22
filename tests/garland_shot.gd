@@ -14,7 +14,7 @@ func _initialize() -> void:
 		main.step(1.0 / 30.0)
 	var cam: Camera3D = main._camera
 	var n := 0
-	for view: Array in [[Vector3(-4.5, 4.6, 6.0), Vector3(-4.5, 5.0, -3.5)], [Vector3(-2.5, 5.2, 0.5), Vector3(-2.5, 5.2, -3.5)], [Vector3(9.5, 4.6, 7.0), Vector3(10.5, 5.0, -3.5)], [Vector3(13.0, 2.2, 2.6), Vector3(13.8, 0.8, -1.5)], [Vector3(10.5, 4.5, 8.0), Vector3(12.5, 1.5, -1.5)]]:
+	for view: Array in [[Vector3(-4.5, 4.6, 6.0), Vector3(-4.5, 5.0, -3.5)], [Vector3(-2.5, 5.2, 0.5), Vector3(-2.5, 5.2, -3.5)], [Vector3(9.5, 4.6, 7.0), Vector3(10.5, 5.0, -3.5)], [Vector3(5.55, 4.6, 1.2), Vector3(5.55, 4.8, -3.8)], [Vector3(10.5, 4.5, 8.0), Vector3(12.5, 1.5, -1.5)]]:
 		for k in 3:
 			main.step(0.0)
 			cam.position = view[0]
