@@ -5,12 +5,12 @@ extends SceneTree
 ## --frames=<dir> also saves every frame at --fps= (default 30), for a film.
 
 const WAY := [Vector2(-3.0, 1.6), Vector2(-6.0, 0.6), Vector2(-8.2, -1.5), Vector2(-6.0, 0.6), Vector2(-3.0, 1.6),
-	Vector2(0.6, 1.8), Vector2(2.5, 1.2), Vector2(4.4, 0.85), Vector2(6.9, 0.3), Vector2(9.0, 0.6), Vector2(6.9, 0.3),
-	Vector2(4.4, 0.85), Vector2(2.2, 1.4)]
+	Vector2(0.6, 1.8), Vector2(2.6, 1.9), Vector2(5.5, 1.6), Vector2(7.9, 1.4), Vector2(8.45, 0.3), Vector2(9.6, -0.2), Vector2(10.4, 0.1),
+	Vector2(9.6, -0.2), Vector2(8.45, 0.3), Vector2(7.9, 1.4), Vector2(5.5, 1.6), Vector2(2.4, 1.9)]
 
 ## seconds into the run -> picture name (more are added when he tosses and goes home)
-var shots := {1.9: "pop", 3.3: "hop_down", 4.4: "walk_a", 6.6: "walk_left", 12.5: "walk_mid", 14.2: "walk_house",
-	16.6: "walk_right"}
+var shots := {1.9: "pop", 3.3: "hop_down", 4.4: "walk_a", 6.6: "walk_left", 12.6: "walk_mid", 14.2: "walk_sink",
+	17.4: "walk_right"}
 
 
 func _initialize() -> void:

@@ -18,7 +18,11 @@ from shapes import *  # mat, finish, ellipsoid, lathe, torus, spline, tube, pris
 random.seed(12)
 # The layout follows the concept picture: the mug stands left of the middle and a little toward the front, the
 # window is right of the middle. Places were read off the picture (1 pixel of its 434 = 0.0507 units).
-LEFT, RIGHT = -9.0, 14.5
+LEFT, RIGHT = -9.0, 15.0
+SIDE_L, SIDE_R = LEFT - 0.4, RIGHT + 0.4  # the side walls
+# the sink, let into the counter under the window
+SINK_X0, SINK_X1, SINK_Y0, SINK_Y1, SINK_DEEP = 3.45, 7.65, -0.5, 2.85, 1.5
+BOXES = []  # (x0, y0, x1, y1) he cannot walk into, in Blender's ground plane
 FRONT, WALL = -2.9, 3.8
 OBSTACLES = []  # (x, y, radius) in Blender's ground plane
 
@@ -247,16 +251,18 @@ TILE = painted("wall_tile", tile_picture(), rough=0.3)
 
 # ---------------------------------------------------------------- the room: counter, wall, cabinets, window
 # the counter top (its picture: 4 units of wood to a repeat), its front edge, and a little beyond each end
-sheet("CounterTop", [(LEFT - 3, FRONT, 0), (RIGHT + 3, FRONT, 0), (RIGHT + 3, WALL, 0), (LEFT - 3, WALL, 0)], WOOD,
-      (0.25, 0.25))
-sheet("CounterEdge", [(LEFT - 3, FRONT, -0.55), (RIGHT + 3, FRONT, -0.55), (RIGHT + 3, FRONT, 0), (LEFT - 3, FRONT, 0)],
+for nm, (x0, x1, y0, y1) in (("CounterLeft", (SIDE_L, SINK_X0, FRONT, WALL)), ("CounterRight", (SINK_X1, SIDE_R, FRONT, WALL)),
+                             ("CounterBySink", (SINK_X0, SINK_X1, FRONT, SINK_Y0)),
+                             ("CounterBehindSink", (SINK_X0, SINK_X1, SINK_Y1, WALL))):
+    sheet(nm, [(x0, y0, 0), (x1, y0, 0), (x1, y1, 0), (x0, y1, 0)], WOOD, (0.25, 0.25), origin=(SIDE_L, FRONT, 0))
+sheet("CounterEdge", [(SIDE_L, FRONT, -0.55), (SIDE_R, FRONT, -0.55), (SIDE_R, FRONT, 0), (SIDE_L, FRONT, 0)],
       WOOD, (0.25, 0.25))
 # lower cabinets under the counter, set back a little, with doors, drawers and handles
-box("LowerCabinets", (0, FRONT + 0.35 + 3.0, -0.55 - 6.0), (RIGHT - LEFT + 6, 6.0, 12.0), "cabinet_dark")
-x = LEFT - 2.6
+box("LowerCabinets", ((SIDE_L + SIDE_R) / 2, FRONT + 0.35 + 3.0, -0.55 - 6.0), (SIDE_R - SIDE_L, 6.0, 12.0), "cabinet_dark")
+x = SIDE_L + 0.1
 door = 0
-while x < RIGHT + 2.0:
-    w = 3.6
+while x < SIDE_R - 0.5:
+    w = min(3.6, SIDE_R - 0.1 - x)
     if door % 3 == 1:
         box("Drawer%d" % door, (x + w / 2, FRONT + 0.30, -1.6), (w - 0.25, 0.12, 1.5), "cabinet")
         box("DrawerPull%d" % door, (x + w / 2, FRONT + 0.20, -1.6), (1.3, 0.10, 0.14), "handle")
@@ -274,7 +280,7 @@ for nm, (x0, x1, z0, z1) in (("WallLeft", (LEFT - 3, WIN_L, 0, 7.6)), ("WallRigh
                              ("WallBelow", (WIN_L, WIN_R, 0, WIN_B)), ("WallAbove", (WIN_L, WIN_R, WIN_T, 7.6))):
     sheet(nm, [(x0, WALL, z0), (x1, WALL, z0), (x1, WALL, z1), (x0, WALL, z1)], TILE, (1 / 1.9, 1 / 1.9),
           origin=(LEFT - 3, WALL, 0))
-for nm, x0, x1 in (("UpperLeft", LEFT - 3, WIN_L - 0.9), ("UpperRight", WIN_R + 0.9, RIGHT + 3)):
+for nm, x0, x1 in (("UpperLeft", SIDE_L, WIN_L - 0.9), ("UpperRight", WIN_R + 0.9, SIDE_R)):
     box(nm, ((x0 + x1) / 2, WALL - 1.3, 7.6 + 3.0), (x1 - x0, 2.6, 6.0), "cabinet")
     n = max(1, round((x1 - x0) / 3.4))
     for i in range(n):
@@ -296,6 +302,48 @@ for nm, c, s in (("FrameL", (WIN_L, WALL - 0.15, (WIN_B + WIN_T) / 2), (0.36, 0.
                  ("FrameAcross", ((WIN_L + WIN_R) / 2, WALL - 0.12, (WIN_B + WIN_T) / 2), (WIN_R - WIN_L, 0.2, 0.16)),
                  ("Sill", ((WIN_L + WIN_R) / 2, WALL - 0.35, WIN_B - 0.1), (WIN_R - WIN_L + 0.9, 0.8, 0.22))):
     box("Window" + nm, c, s, "window_frame")
+
+# ---------------------------------------------------------------- the sink under the window, and the side walls
+# ("There should be a sink in front of the window, and there should be walls and the left and right ... instead of
+# just ending", the user.) A white ceramic basin let into the counter, a raised rim, a drain, and an arched tap
+# with two handles that stays under the window sill.
+CERAMIC = mat("ceramic")
+SMX = (SINK_X0 + SINK_X1) / 2
+for nm, corners in (
+        ("SinkFloor", [(SINK_X0, SINK_Y0, -SINK_DEEP), (SINK_X1, SINK_Y0, -SINK_DEEP), (SINK_X1, SINK_Y1, -SINK_DEEP),
+                       (SINK_X0, SINK_Y1, -SINK_DEEP)]),
+        ("SinkBack", [(SINK_X0, SINK_Y1, -SINK_DEEP), (SINK_X1, SINK_Y1, -SINK_DEEP), (SINK_X1, SINK_Y1, 0), (SINK_X0, SINK_Y1, 0)]),
+        ("SinkFront", [(SINK_X1, SINK_Y0, -SINK_DEEP), (SINK_X0, SINK_Y0, -SINK_DEEP), (SINK_X0, SINK_Y0, 0), (SINK_X1, SINK_Y0, 0)]),
+        ("SinkLeft", [(SINK_X0, SINK_Y0, -SINK_DEEP), (SINK_X0, SINK_Y1, -SINK_DEEP), (SINK_X0, SINK_Y1, 0), (SINK_X0, SINK_Y0, 0)]),
+        ("SinkRight", [(SINK_X1, SINK_Y1, -SINK_DEEP), (SINK_X1, SINK_Y0, -SINK_DEEP), (SINK_X1, SINK_Y0, 0), (SINK_X1, SINK_Y1, 0)])):
+    sheet(nm, corners, CERAMIC, (1, 1))
+RIM = 0.22
+for nm, c, s in (("RimFront", (SMX, SINK_Y0 - RIM / 2, 0.06), (SINK_X1 - SINK_X0 + RIM * 2, RIM, 0.12)),
+                 ("RimBack", (SMX, SINK_Y1 + RIM / 2, 0.06), (SINK_X1 - SINK_X0 + RIM * 2, RIM, 0.12)),
+                 ("RimLeft", (SINK_X0 - RIM / 2, (SINK_Y0 + SINK_Y1) / 2, 0.06), (RIM, SINK_Y1 - SINK_Y0, 0.12)),
+                 ("RimRight", (SINK_X1 + RIM / 2, (SINK_Y0 + SINK_Y1) / 2, 0.06), (RIM, SINK_Y1 - SINK_Y0, 0.12))):
+    box("Sink" + nm, c, s, "ceramic")
+put(lathe("SinkDrain", [(0, 0.0), (0.26, 0.0), (0.3, 0.02), (0.26, 0.05), (0.1, 0.03), (0, 0.03)], "steel", segs=20),
+    SMX, (SINK_Y0 + SINK_Y1) / 2, -SINK_DEEP)
+TAP_Y = SINK_Y1 + 0.5
+put(lathe("TapFoot", [(0, 0), (0.26, 0), (0.28, 0.08), (0.2, 0.16), (0.14, 0.3), (0, 0.3)], "steel", segs=20), SMX, TAP_Y)
+tube("TapNeck", spline([(SMX, TAP_Y, 0.2), (SMX, TAP_Y, 1.35), (SMX, TAP_Y - 0.35, 1.82), (SMX, TAP_Y - 0.95, 1.8),
+                        (SMX, TAP_Y - 1.2, 1.45)], per=8), 0.11, "steel", segs=12)
+put(lathe("TapMouth", [(0, 0), (0.12, 0), (0.15, 0.06), (0.15, 0.14), (0, 0.14)], "steel", segs=14), SMX, TAP_Y - 1.2, 1.32)
+for sx in (-1, 1):
+    hx = SMX + sx * 0.8
+    put(lathe("TapHandleFoot%d" % sx, [(0, 0), (0.17, 0), (0.18, 0.06), (0.11, 0.14), (0.09, 0.42), (0, 0.42)], "steel", segs=16),
+        hx, TAP_Y)
+    tube("TapHandle%d" % sx, [(hx - 0.22, TAP_Y, 0.46), (hx + 0.22, TAP_Y, 0.46)], 0.055, "steel", segs=8)
+    tube("TapHandleB%d" % sx, [(hx, TAP_Y - 0.22, 0.46), (hx, TAP_Y + 0.22, 0.46)], 0.055, "steel", segs=8)
+BOXES.append((SINK_X0 - RIM, SINK_Y0 - RIM, SINK_X1 + RIM, WALL))
+
+# the side walls: tiled like the back wall, from below the counter to above the cabinets, running out toward the room
+ROOM = FRONT - 9.0
+sheet("WallSideLeft", [(SIDE_L, ROOM, -12.6), (SIDE_L, WALL, -12.6), (SIDE_L, WALL, 13.6), (SIDE_L, ROOM, 13.6)], TILE,
+      (1 / 1.9, 1 / 1.9), origin=(SIDE_L, WALL, 0))
+sheet("WallSideRight", [(SIDE_R, WALL, -12.6), (SIDE_R, ROOM, -12.6), (SIDE_R, ROOM, 13.6), (SIDE_R, WALL, 13.6)], TILE,
+      (1 / 1.9, 1 / 1.9), origin=(SIDE_R, WALL, 0))
 
 # ---------------------------------------------------------------- outside the window: a snowy night
 # The window is a real opening: behind the glass is a short tunnel through the wall and, set back, a painted
@@ -442,7 +490,7 @@ detail_pictures()
 # grown along the same line by the game (data/kitchen.json "garland" -> PineTree.garland in scripts/main.gd).
 # The lights are a string of their own, looped loosely under and over the garland: bulbs at uneven gaps, each
 # hanging its own way, in no set order of colours.
-HOOKS = [LEFT - 2.5, -7.9, -4.3, -0.7, WIN_L - 0.5, WIN_R + 0.5, 11.6, RIGHT + 2.5]
+HOOKS = [SIDE_L, -6.5, -3.6, -0.7, WIN_L - 0.5, WIN_R + 0.5, 11.9, SIDE_R]
 HOOK_Z = [5.7, 5.7, 5.7, 5.7, 5.9, 5.9, 5.7, 5.7]
 bulb = 0
 GLOWS = ["glow_red", "glow_green", "glow_blue", "glow_yellow", "glow_pink"]
@@ -561,7 +609,7 @@ LAMPS.append(("Lamp_glow_yellow_star", Vector((X, Y - 0.6, TREE_TOP))))
 blocks(X, Y, 0.85)  # (only the pot: he is short enough to walk under the branches)
 
 # a gingerbread house
-X, Y, TURN = 3.65, 0.9, -12.0
+X, Y, TURN = 2.3, 0.4, -12.0
 GM = Matrix.Translation((X, Y, 0)) @ Matrix.Rotation(math.radians(TURN), 4, "Z")
 HW, HD, HH, ROOF = 1.0, 0.8, 1.15, 0.95
 
@@ -601,7 +649,7 @@ house("j", tube("GingerSnow", [(-HW - 0.05, -HD - 0.05, 0.03), (HW + 0.05, -HD -
 blocks(X, Y, 1.0)
 
 # a plate of cookies
-X, Y = 5.6, -1.3
+X, Y = 9.8, -1.6
 put(lathe("Plate", [(0, 0), (0.7, 0), (1.15, 0.12), (1.15, 0.17), (0.7, 0.07), (0, 0.07)], "plate", segs=40), X, Y)
 for i, (ox, oy, oz, kind) in enumerate(((-0.45, 0.2, 0.1, 0), (0.4, 0.3, 0.1, 1), (0.05, -0.45, 0.1, 0), (0.0, 0.05, 0.2, 1))):
     put(lathe("Cookie%d" % i, [(0, 0), (0.36, 0), (0.4, 0.04), (0.36, 0.09), (0, 0.1)], "cookie", segs=18), X + ox, Y + oy, oz)
@@ -612,7 +660,7 @@ for i, (ox, oy, oz, kind) in enumerate(((-0.45, 0.2, 0.1, 0), (0.4, 0.3, 0.1, 1)
 blocks(X, Y, 0.78)  # (he may tread on its rim)
 
 # a glass jar of candy canes
-X, Y = 7.25, 1.0
+X, Y = 8.9, 1.7
 put(lathe("JarGlass", [(0, 0), (0.62, 0), (0.7, 0.1), (0.7, 1.7), (0.55, 1.9), (0.55, 2.0), (0.62, 2.0), (0.62, 2.08),
                        (0.5, 2.08), (0.5, 1.88), (0.64, 1.68), (0.64, 0.12), (0, 0.08)], "glass", segs=32), X, Y)
 for i in range(5):
@@ -627,7 +675,7 @@ for i in range(5):
 blocks(X, Y, 0.8)
 
 # a nutcracker soldier
-X, Y = 9.3, 1.2
+X, Y = 10.4, 1.6
 NM = Matrix.Translation((X, Y, 0)) @ Matrix.Rotation(math.radians(-20), 4, "Z")
 
 
@@ -659,9 +707,9 @@ for sx in (-1, 1):
 blocks(X, Y, 0.6)
 
 # wrapped presents
-PRESENTS = [((10.6, -0.3), (1.3, 1.0, 0.8), 12, "wrap_red", "ribbon_gold"),
-            ((12.0, -0.7), (0.95, 0.95, 1.15), -18, "wrap_green", "ribbon_red"),
-            ((11.1, -0.15), (0.7, 0.6, 0.45), 30, "wrap_gold", "ribbon_white")]
+PRESENTS = [((11.6, -0.3), (1.3, 1.0, 0.8), 12, "wrap_red", "ribbon_gold"),
+            ((13.0, -0.7), (0.95, 0.95, 1.15), -18, "wrap_green", "ribbon_red"),
+            ((12.1, -0.15), (0.7, 0.6, 0.45), 30, "wrap_gold", "ribbon_white")]
 for i, ((px, py), (w, d, h), turn, wrap, ribbon) in enumerate(PRESENTS):
     z0 = 0.8 if i == 2 else 0.0  # the little one sits on the red one
     box("Present%d" % i, (px, py, z0 + h / 2), (w, d, h), wrap, turn)
@@ -671,11 +719,11 @@ for i, ((px, py), (w, d, h), turn, wrap, ribbon) in enumerate(PRESENTS):
         torus("PresentBow%d_%d" % (i, sx), 0.13, 0.045, ribbon,
               Matrix.Translation((px, py, z0 + h + 0.1)) @ Matrix.Rotation(math.radians(turn), 4, "Z")
               @ Matrix.Translation((sx * 0.14, 0, 0)) @ Matrix.Rotation(math.radians(90), 4, "X"), segs_R=14, segs_r=6)
-blocks(10.7, -0.3, 0.85)
-blocks(12.0, -0.7, 0.75)
+blocks(11.7, -0.3, 0.85)
+blocks(13.0, -0.7, 0.75)
 
 # a lit candle on a saucer, at the right end
-X, Y = 13.2, 0.6
+X, Y = 13.9, 1.5
 put(lathe("CandleSaucer", [(0, 0), (0.55, 0), (0.8, 0.12), (0.8, 0.17), (0.5, 0.07), (0, 0.07)], "ceramic", segs=28), X, Y)
 put(lathe("Candle", [(0, 0.06), (0.36, 0.06), (0.36, 1.2), (0.3, 1.27), (0.12, 1.2), (0, 1.2)], "wax", segs=24), X, Y)
 tube("CandleWick", [(X, Y, 1.2), (X, Y, 1.36)], 0.02, "wick", segs=5)
@@ -698,6 +746,8 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
     # Godot: x the same, z = -y
     json.dump({"left": LEFT + 0.4, "right": RIGHT - 0.4, "front": -(FRONT + 0.4), "back": -(WALL - 0.55),
                "obstacles": [[round(x, 3), round(-y, 3), round(r, 3)] for (x, y, r) in OBSTACLES],
+               # rectangles he cannot walk into (the sink): x0, z0, x1, z1
+               "boxes": [[round(x0, 3), round(-y1, 3), round(x1, 3), round(-y0, 3)] for (x0, y0, x1, y1) in BOXES],
                # each swag of the garland as points, for the pine needles the game grows along it
                "garland": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in GARLAND],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are

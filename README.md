@@ -41,6 +41,9 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   them in the toy's own manner (wrapped-wire limbs, pink felt ends).
 - **The kitchen's layout** was read off the concept picture; the window's frost and the candy canes' stripes are
   pictures painted by the build script, and the cane jar is clear glass.
+- **The sink** under the window is a basin let into the counter (the counter top is in pieces round it) with a tap; he
+  cannot walk into it (`boxes` in `data/kitchen.json`). The counter ends at tiled side walls, which are one-sided so
+  the camera can swing outside them. The props that stood under the window in the concept moved to make room.
 - **The look** is a cosy night: the room is nearly dark and lit by the bulbs, the candle, the star and a low warm glow
   (`_build_stage` in `scripts/main.gd`). Nothing is left flat: `DETAIL` there lays a grey picture (`textures/*.png`:
   paper, felt, glaze, sugar, grain, dots, stripes, made by the kitchen build script) over every plain-coloured thing.

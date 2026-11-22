@@ -524,6 +524,19 @@ func _keep_on_counter() -> void:
 				away = away.normalized() * room if away.length() > 0.001 else Vector2(0.0, room)
 				_spot.x = o[0] + away.x
 				_spot.z = o[1] + away.y
+		for b: Array in _walk.get("boxes", []):
+			# a rectangle (the sink): out by the nearest side
+			var x0: float = b[0] - BODY
+			var z0: float = b[1] - BODY
+			var x1: float = b[2] + BODY
+			var z1: float = b[3] + BODY
+			if _spot.x > x0 and _spot.x < x1 and _spot.z > z0 and _spot.z < z1:
+				var outs := [_spot.x - x0, x1 - _spot.x, _spot.z - z0, z1 - _spot.z]
+				match outs.find(outs.min()):
+					0: _spot.x = x0
+					1: _spot.x = x1
+					2: _spot.z = z0
+					3: _spot.z = z1
 		_spot.x = clampf(_spot.x, _walk["left"], _walk["right"])
 		_spot.z = clampf(_spot.z, _walk["back"], _walk["front"])
 
