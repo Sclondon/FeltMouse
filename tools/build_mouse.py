@@ -340,9 +340,9 @@ root = pivot("MouseRoot", ORIGIN)
 hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith(
     ("Body", "Head", "Nose", "Eye", "Ear", "Whisker", "Scarf", "FibresMouse", "FibresScarf"))],
     root, ORIGIN)
-# both arms swing as one from the line of his shoulders; the candy has a pivot of its own so it can be thrown
-hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith(("Arm", "Hand"))],
-     pivot("ArmsPivot", SHOULDERS, root), SHOULDERS)
+# each arm swings from the line of his shoulders; the candy has a pivot of its own so it can be thrown
+for side in ("L", "R"):  # an arm each, so they can swing as he walks
+    hang(["Arm" + side, "Hand" + side], pivot("ArmPivot" + side, SHOULDERS, root), SHOULDERS)
 hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith("Candy")],
      pivot("CandyPivot", CANDY_AT, root), CANDY_AT)
 for side, sx in (("L", -1), ("R", 1)):

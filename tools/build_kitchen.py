@@ -16,8 +16,10 @@ sys.path.insert(0, HERE)
 from shapes import *  # mat, finish, ellipsoid, lathe, torus, spline, tube, prism, COL, ROUGH, CLEAR
 
 random.seed(12)
-LEFT, RIGHT = -11.0, 11.0
-FRONT, WALL = -3.3, 3.3
+# The layout follows the concept picture: the mug stands left of the middle and a little toward the front, the
+# window is right of the middle. Places were read off the picture (1 pixel of its 434 = 0.0507 units).
+LEFT, RIGHT = -9.0, 14.5
+FRONT, WALL = -2.9, 3.8
 OBSTACLES = []  # (x, y, radius) in Blender's ground plane
 
 COL.update({
@@ -158,6 +160,83 @@ def tile_picture():
     return pix
 
 
+def frost_picture():
+    """One window pane: a clear dark night in the middle, frost grown thick in from the frame, ragged at its edge."""
+    rng = np.random.default_rng(8)
+    n = 256
+    yy, xx = np.mgrid[0:n, 0:n] / (n - 1.0)
+    edge = np.minimum(np.minimum(xx, 1 - xx), np.minimum(yy, 1 - yy))  # 0 at the frame, 0.5 in the middle
+    noise = np.zeros((n, n))
+    for cells, amp in ((4, 0.5), (8, 0.3), (16, 0.2), (32, 0.12), (64, 0.08)):
+        g = rng.random((cells + 1, cells + 1))
+        idx = np.linspace(0, cells, n)
+        i0 = np.floor(idx).astype(int).clip(0, cells - 1)
+        f = idx - i0
+        f = f * f * (3 - 2 * f)
+        rows = g[i0, :] * (1 - f)[:, None] + g[i0 + 1, :] * f[:, None]
+        noise += amp * (rows[:, i0] * (1 - f)[None, :] + rows[:, i0 + 1] * f[None, :])
+    noise /= 1.2
+    frost = np.clip((0.27 - edge + (noise - 0.5) * 0.40) / 0.14, 0, 1)
+    frost = frost * frost * (3 - 2 * frost)
+    thin = np.clip(noise - 0.5, 0, 1) * 0.35  # a faint bloom over the clear middle
+    cover = np.clip(frost * (0.72 + 0.28 * noise) + thin, 0, 1)
+    sparkle = (rng.random((n, n)) > 0.988) * frost * 0.25
+    night = np.array([0.02, 0.05, 0.15])
+    ice = np.array([0.78, 0.88, 0.97])
+    pix = night[None, None, :] * (1 - cover[:, :, None]) + ice[None, None, :] * cover[:, :, None] + sparkle[:, :, None]
+    return np.clip(pix, 0, 1).astype(np.float32)
+
+
+def cane_picture():
+    """Candy cane stripes: a broad red band and a thin one, slanting, repeating without a seam."""
+    n = 64
+    pix = np.ones((n, n, 3), dtype=np.float32) * np.array([0.96, 0.95, 0.93], dtype=np.float32)
+    yy, xx = np.mgrid[0:n, 0:n]
+    band = (xx + yy) % 32
+    pix[band < 10] = (0.80, 0.04, 0.06)
+    pix[(band >= 17) & (band < 20)] = (0.80, 0.04, 0.06)
+    return pix
+
+
+FROST = painted("window_frost", frost_picture(), rough=0.3)
+painted("cane_stripes", cane_picture(), rough=0.3)
+
+
+def striped_tube(name, points, radius, segs=10, wraps=1.3):
+    """A tube that wears the candy cane picture: once round it, and wraps times to a unit of its length."""
+    pts = [Vector(p) for p in points]
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new("UVMap")
+    tang = [(pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized() for i in range(len(pts))]
+    n = tang[0].orthogonal().normalized()
+    rings = []
+    run = [0.0]
+    for i, p in enumerate(pts):
+        t = tang[i]
+        n = (n - t * n.dot(t)).normalized()
+        bn = t.cross(n)
+        rings.append([bm.verts.new(p + (n * math.cos(math.tau * k / segs) + bn * math.sin(math.tau * k / segs)) * radius)
+                      for k in range(segs)])
+        if i:
+            run.append(run[-1] + (p - pts[i - 1]).length)
+    for i in range(len(rings) - 1):
+        a, b = rings[i], rings[i + 1]
+        for k in range(segs):
+            l = (k + 1) % segs
+            f = bm.faces.new((a[k], b[k], b[l], a[l]))
+            for loop, (uu, vv) in zip(f.loops, ((k, run[i]), (k, run[i + 1]), (k + 1, run[i + 1]), (k + 1, run[i]))):
+                loop[uv].uv = (uu / segs, vv * wraps)
+    for ring, centre, v, flip in ((rings[0], pts[0] - tang[0] * radius * 0.7, run[0], False),
+                                  (rings[-1], pts[-1] + tang[-1] * radius * 0.7, run[-1], True)):
+        c = bm.verts.new(centre)
+        for k in range(segs):
+            l = (k + 1) % segs
+            f = bm.faces.new((c, ring[l], ring[k]) if flip else (c, ring[k], ring[l]))
+            for loop in f.loops:
+                loop[uv].uv = (0.5, v * wraps)
+    return finish(name, bm, "cane_stripes")
+
+
 WOOD = painted("counter_wood", wood_picture(), rough=0.45)
 TILE = painted("wall_tile", tile_picture(), rough=0.3)
 
@@ -186,7 +265,7 @@ while x < RIGHT + 2.0:
     x += w
     door += 1
 # upper cabinets either side of the window
-WIN_L, WIN_R, WIN_B, WIN_T = 2.4, 7.6, 2.3, 7.2
+WIN_L, WIN_R, WIN_B, WIN_T = 3.1, 8.0, 2.3, 7.3
 for nm, x0, x1 in (("UpperLeft", LEFT - 3, WIN_L - 0.9), ("UpperRight", WIN_R + 0.9, RIGHT + 3)):
     box(nm, ((x0 + x1) / 2, WALL - 1.3, 7.6 + 3.0), (x1 - x0, 2.6, 6.0), "cabinet")
     n = max(1, round((x1 - x0) / 3.4))
@@ -196,7 +275,12 @@ for nm, x0, x1 in (("UpperLeft", LEFT - 3, WIN_L - 0.9), ("UpperRight", WIN_R + 
         box("%sPull%d" % (nm, i), (cx + (x1 - x0) / n / 2 - 0.5, WALL - 2.72, 8.4), (0.14, 0.1, 1.0), "handle")
 box("WallAboveWindow", ((WIN_L + WIN_R) / 2, WALL + 0.2, 7.6 + 3.0), (WIN_R - WIN_L + 1.8, 0.4, 6.0), "window_frame")
 # the window: a frosty night behind a white frame with one upright and one cross bar
-box("WindowNight", ((WIN_L + WIN_R) / 2, WALL - 0.05, (WIN_B + WIN_T) / 2), (WIN_R - WIN_L, 0.06, WIN_T - WIN_B), "night")
+WMX, WMZ = (WIN_L + WIN_R) / 2, (WIN_B + WIN_T) / 2
+for pi_, (x0, x1, z0, z1) in enumerate(((WIN_L, WMX, WIN_B, WMZ), (WMX, WIN_R, WIN_B, WMZ), (WIN_L, WMX, WMZ, WIN_T),
+                                         (WMX, WIN_R, WMZ, WIN_T))):
+    # each pane wears the frost picture whole
+    sheet("WindowPane%d" % pi_, [(x0, WALL - 0.06, z0), (x1, WALL - 0.06, z0), (x1, WALL - 0.06, z1), (x0, WALL - 0.06, z1)],
+          FROST, (1 / (x1 - x0), 1 / (z1 - z0)))
 for nm, c, s in (("FrameL", (WIN_L, WALL - 0.15, (WIN_B + WIN_T) / 2), (0.36, 0.3, WIN_T - WIN_B + 0.36)),
                  ("FrameR", (WIN_R, WALL - 0.15, (WIN_B + WIN_T) / 2), (0.36, 0.3, WIN_T - WIN_B + 0.36)),
                  ("FrameT", ((WIN_L + WIN_R) / 2, WALL - 0.15, WIN_T), (WIN_R - WIN_L + 0.36, 0.3, 0.36)),
@@ -204,21 +288,10 @@ for nm, c, s in (("FrameL", (WIN_L, WALL - 0.15, (WIN_B + WIN_T) / 2), (0.36, 0.
                  ("FrameAcross", ((WIN_L + WIN_R) / 2, WALL - 0.12, (WIN_B + WIN_T) / 2), (WIN_R - WIN_L, 0.2, 0.16)),
                  ("Sill", ((WIN_L + WIN_R) / 2, WALL - 0.35, WIN_B - 0.1), (WIN_R - WIN_L + 0.9, 0.8, 0.22))):
     box("Window" + nm, c, s, "window_frame")
-# frost creeping in from the corners of each of the four panes
-for i in range(160):
-    px = random.choice((WIN_L, (WIN_L + WIN_R) / 2)) + 0.3
-    pz = random.choice((WIN_B, (WIN_B + WIN_T) / 2)) + 0.3
-    pw, ph = (WIN_R - WIN_L) / 2 - 0.5, (WIN_T - WIN_B) / 2 - 0.5
-    u, v = random.random(), random.random()
-    if min(u, 1 - u) * min(v, 1 - v) > 0.02 * random.random() + 0.004:
-        continue
-    r = random.uniform(0.07, 0.2)
-    ellipsoid("Frost%d" % i, (px + u * pw, WALL - 0.09, pz + v * ph), (r, 0.015, r * random.uniform(0.6, 1.2)), "frost",
-              subsurf=0)
 
 # ---------------------------------------------------------------- the garland and its lights, hung in swags
-HOOKS = [LEFT - 2.5, -8.2, -4.4, -0.6, WIN_L - 0.4, WIN_R + 0.4, RIGHT + 2.5]
-HOOK_Z = [6.3, 6.3, 6.3, 6.3, 6.5, 6.5, 6.3]
+HOOKS = [LEFT - 2.5, -7.9, -4.3, -0.7, WIN_L - 0.5, WIN_R + 0.5, 11.6, RIGHT + 2.5]
+HOOK_Z = [6.3, 6.3, 6.3, 6.3, 6.5, 6.5, 6.3, 6.3]
 bulb = 0
 GLOWS = ["glow_red", "glow_green", "glow_blue", "glow_yellow", "glow_pink"]
 LAMPS = []  # where the game puts a real light: (name, colour name, place)
@@ -269,7 +342,7 @@ for s in range(len(HOOKS) - 1):
 
 # ---------------------------------------------------------------- the things on the counter, left to right
 # a bowl of oranges
-X, Y = -8.6, 1.1
+X, Y = -6.0, 2.0
 put(lathe("Bowl", [(0, 0.12), (0.7, 0.10), (1.25, 0.45), (1.5, 1.0), (1.42, 1.02), (1.15, 0.52), (0.6, 0.22), (0, 0.22)],
           "ceramic", segs=40), X, Y)
 for i, (ox, oy, oz) in enumerate(((-0.5, -0.3, 0.75), (0.5, -0.35, 0.78), (0.05, 0.5, 0.76), (0.0, -0.02, 1.35), (-0.75, 0.45, 0.8))):
@@ -278,7 +351,7 @@ ellipsoid("OrangeLeaf", (X + 0.12, Y - 0.05, 1.83), (0.22, 0.10, 0.03), "orange_
 blocks(X, Y, 1.5)
 
 # a red kettle
-X, Y = -5.4, 1.5
+X, Y = -3.2, 2.2
 put(lathe("Kettle", [(0, 0), (1.15, 0), (1.3, 0.15), (1.28, 0.9), (1.0, 1.75), (0.55, 2.05), (0, 2.1)], "kettle", segs=40), X, Y)
 put(lathe("KettleLid", [(0, 2.05), (0.5, 2.05), (0.45, 2.2), (0.16, 2.26), (0.2, 2.5), (0, 2.55)], "black", segs=24), X, Y)
 tube("KettleSpout", spline([(X - 1.05, Y - 0.2, 0.9), (X - 1.6, Y - 0.35, 1.3), (X - 1.95, Y - 0.45, 1.95)]), 0.2, "kettle")
@@ -288,7 +361,7 @@ blocks(X, Y, 1.4)
 blocks(X - 1.6, Y - 0.35, 0.5)
 
 # a rolling pin on a dusting of flour
-X, Y, TURN = -3.4, -1.3, 24.0
+X, Y, TURN = -3.0, 0.1, 10.0
 along = Vector((math.cos(math.radians(TURN)), math.sin(math.radians(TURN)), 0))
 c = Vector((X, Y, 0.3))
 tube("RollingPin", [c - along * 1.3, c + along * 1.3], 0.3, "pin_wood", segs=18)
@@ -305,7 +378,7 @@ blocks(0, 0, 0.66)
 blocks(0.68, 0, 0.2)
 
 # a little Christmas tree in a pot
-X, Y = 3.0, 1.6
+X, Y = 1.4, 2.4
 put(lathe("TreePot", [(0, 0), (0.55, 0), (0.75, 0.9), (0.82, 0.9), (0.82, 1.05), (0.7, 1.05), (0, 1.0)], "terracotta", segs=28), X, Y)
 put(lathe("TreeSoil", [(0, 0.9), (0.68, 0.9), (0.68, 1.0), (0, 1.02)], "soil", segs=20), X, Y)
 tube("TreeTrunk", [(X, Y, 0.95), (X, Y, 1.5)], 0.13, "trunk")
@@ -329,10 +402,10 @@ for i in range(10):
 prism("TreeStar", star, -0.05, 0.05, "glow_yellow",
       Matrix.Translation((X, Y, TREE_TOP + 0.12)) @ Matrix.Rotation(math.radians(90), 4, "X"))
 LAMPS.append(("Lamp_glow_yellow_star", Vector((X, Y - 0.6, TREE_TOP))))
-blocks(X, Y, 1.0)
+blocks(X, Y, 0.85)  # (only the pot: he is short enough to walk under the branches)
 
 # a gingerbread house
-X, Y, TURN = 6.2, 1.6, -14.0
+X, Y, TURN = 3.65, 0.9, -12.0
 GM = Matrix.Translation((X, Y, 0)) @ Matrix.Rotation(math.radians(TURN), 4, "Z")
 HW, HD, HH, ROOF = 1.0, 0.8, 1.15, 0.95
 
@@ -369,10 +442,10 @@ for sx in (-1, 1):
     house("i", ellipsoid("GingerPane%d" % sx, (sx * 0.62, -HD - 0.01, 0.72), (0.14, 0.02, 0.14), "glow_yellow", subsurf=0))
 house("j", tube("GingerSnow", [(-HW - 0.05, -HD - 0.05, 0.03), (HW + 0.05, -HD - 0.05, 0.03), (HW + 0.05, HD + 0.05, 0.03),
                                (-HW - 0.05, HD + 0.05, 0.03), (-HW - 0.05, -HD - 0.05, 0.03)], 0.06, "icing", segs=6))
-blocks(X, Y, 1.2)
+blocks(X, Y, 1.0)
 
 # a plate of cookies
-X, Y = 4.3, -1.6
+X, Y = 5.6, -1.3
 put(lathe("Plate", [(0, 0), (0.7, 0), (1.15, 0.12), (1.15, 0.17), (0.7, 0.07), (0, 0.07)], "plate", segs=40), X, Y)
 for i, (ox, oy, oz, kind) in enumerate(((-0.45, 0.2, 0.1, 0), (0.4, 0.3, 0.1, 1), (0.05, -0.45, 0.1, 0), (0.0, 0.05, 0.2, 1))):
     put(lathe("Cookie%d" % i, [(0, 0), (0.36, 0), (0.4, 0.04), (0.36, 0.09), (0, 0.1)], "cookie", segs=18), X + ox, Y + oy, oz)
@@ -380,10 +453,10 @@ for i, (ox, oy, oz, kind) in enumerate(((-0.45, 0.2, 0.1, 0), (0.4, 0.3, 0.1, 1)
         a = math.tau * k / 5 + i
         ellipsoid("CookieDot%d_%d" % (i, k), (X + ox + math.cos(a) * 0.2, Y + oy + math.sin(a) * 0.2, oz + 0.1),
                   (0.06, 0.06, 0.03), "choc" if kind == 0 else "icing", subsurf=0)
-blocks(X, Y, 0.95)  # (he may tread on its rim)
+blocks(X, Y, 0.78)  # (he may tread on its rim)
 
 # a glass jar of candy canes
-X, Y = 8.3, 1.9
+X, Y = 7.25, 1.0
 put(lathe("JarGlass", [(0, 0), (0.62, 0), (0.7, 0.1), (0.7, 1.7), (0.55, 1.9), (0.55, 2.0), (0.62, 2.0), (0.62, 2.08),
                        (0.5, 2.08), (0.5, 1.88), (0.64, 1.68), (0.64, 0.12), (0, 0.08)], "glass", segs=32), X, Y)
 for i in range(5):
@@ -394,22 +467,11 @@ for i in range(5):
     top = Vector((bx, by, 0.1)) + lean + Vector((0, 0, 2.4))
     path = spline([Vector((bx, by, 0.1)), top, top + hook * 0.2 + Vector((0, 0, 0.22)), top + hook * 0.45 + Vector((0, 0, 0.1)),
                    top + hook * 0.5 + Vector((0, 0, -0.2))], per=6)
-    tube("Cane%d" % i, path, 0.085, "cane_white", segs=8)
-    stripe = []
-    tang_n = None
-    for k, p in enumerate(path[:-1]):
-        t = (path[k + 1] - p).normalized()
-        n = t.orthogonal().normalized() if tang_n is None else (tang_n - t * tang_n.dot(t)).normalized()
-        tang_n = n
-        for q in range(4):
-            ang = (k + q / 4) * 1.6
-            pp = p.lerp(path[k + 1], q / 4)
-            stripe.append(pp + (n * math.cos(ang) + t.cross(n) * math.sin(ang)) * 0.075)
-    tube("CaneStripe%d" % i, stripe, 0.03, "cane_red", segs=5)
+    striped_tube("Cane%d" % i, path, 0.085)
 blocks(X, Y, 0.8)
 
 # a nutcracker soldier
-X, Y = 9.9, 0.7
+X, Y = 9.3, 1.2
 NM = Matrix.Translation((X, Y, 0)) @ Matrix.Rotation(math.radians(-20), 4, "Z")
 
 
@@ -441,9 +503,9 @@ for sx in (-1, 1):
 blocks(X, Y, 0.6)
 
 # wrapped presents
-PRESENTS = [((8.4, -1.5), (1.3, 1.0, 0.8), 12, "wrap_red", "ribbon_gold"),
-            ((9.8, -1.9), (0.95, 0.95, 1.15), -18, "wrap_green", "ribbon_red"),
-            ((8.9, -1.35), (0.7, 0.6, 0.45), 30, "wrap_gold", "ribbon_white")]
+PRESENTS = [((10.6, -0.3), (1.3, 1.0, 0.8), 12, "wrap_red", "ribbon_gold"),
+            ((12.0, -0.7), (0.95, 0.95, 1.15), -18, "wrap_green", "ribbon_red"),
+            ((11.1, -0.15), (0.7, 0.6, 0.45), 30, "wrap_gold", "ribbon_white")]
 for i, ((px, py), (w, d, h), turn, wrap, ribbon) in enumerate(PRESENTS):
     z0 = 0.8 if i == 2 else 0.0  # the little one sits on the red one
     box("Present%d" % i, (px, py, z0 + h / 2), (w, d, h), wrap, turn)
@@ -453,11 +515,11 @@ for i, ((px, py), (w, d, h), turn, wrap, ribbon) in enumerate(PRESENTS):
         torus("PresentBow%d_%d" % (i, sx), 0.13, 0.045, ribbon,
               Matrix.Translation((px, py, z0 + h + 0.1)) @ Matrix.Rotation(math.radians(turn), 4, "Z")
               @ Matrix.Translation((sx * 0.14, 0, 0)) @ Matrix.Rotation(math.radians(90), 4, "X"), segs_R=14, segs_r=6)
-blocks(8.5, -1.5, 0.9)
-blocks(9.8, -1.9, 0.78)
+blocks(10.7, -0.3, 0.85)
+blocks(12.0, -0.7, 0.75)
 
-# a lit candle on a saucer, at the left end
-X, Y = -10.2, -1.6
+# a lit candle on a saucer, at the right end
+X, Y = 13.2, 0.6
 put(lathe("CandleSaucer", [(0, 0), (0.55, 0), (0.8, 0.12), (0.8, 0.17), (0.5, 0.07), (0, 0.07)], "ceramic", segs=28), X, Y)
 put(lathe("Candle", [(0, 0.06), (0.36, 0.06), (0.36, 1.2), (0.3, 1.27), (0.12, 1.2), (0, 1.2)], "wax", segs=24), X, Y)
 tube("CandleWick", [(X, Y, 1.2), (X, Y, 1.36)], 0.02, "wick", segs=5)

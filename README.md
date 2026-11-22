@@ -9,7 +9,8 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
 - **What happens**: he pops out of the cocoa foam and hops down onto the counter; then you walk him about among the
   Christmas things (a bowl of oranges, a kettle, a rolling pin, a little tree, a gingerbread house, cookies, candy
   canes, a nutcracker, presents, a candle; a garland of lights and a frosty window behind).
-- **Controls, all on screen**: the stick (bottom left) walks him; the candy button tosses his candy over his head; the
+- **Controls, all on screen**: the stick (bottom left) walks him; the candy button has him bring out his candy and toss it over his head
+  (walking about, his hands are empty and his arms swing); the
   mug button sends him home, where he sits down into the foam, ducks under and pops out again. Drag anywhere else to
   look about, pinch or wheel to come closer. Keys as extras: WASD or arrows, Space to toss, H to go home.
 - **Run**: `godot --path C:Projectsrontrangeinstitutegameseltmouse`.
@@ -34,8 +35,8 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
 - **The animation** is all in `scripts/main.gd`: what he is doing is `act` (pop, hop down, free, toss, hop up, sit), the
   set pieces are `_show_pose` and `_toss_pose` on the `T_*` times at the top, walking is `_walk_about`. The on-screen
   controls are drawn by `scripts/hud.gd`.
-  He hangs from `MouseRoot` in the model, each leg from a `LegPivot`, the tail from `TailPivot`, both arms from
-  `ArmsPivot` and the candy from `CandyPivot`. The foam moves in
+  He hangs from `MouseRoot` in the model, each leg from a `LegPivot`, the tail from `TailPivot`, each arm from an
+  `ArmPivot` and the candy from `CandyPivot`. The foam moves in
   the felt shader (the `foam_*` settings, zero on every other part). Legs and tail are not in the photo: Claude designed
   them in the toy's own manner (wrapped-wire limbs, pink felt ends).
 - **Rogue strings and loops** are real hair-thin geometry (`fibre_*` materials), scattered over the felt parts by `shed()`

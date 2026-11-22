@@ -57,9 +57,10 @@ const SMALL := 0.45
 const ARMS_UP := 1.6      ## how far the arms swing to hold the candy over his head, radians
 const TOSS_HEIGHT := 0.5  ## how high the candy flies above his raised hands
 const ARMS_STRETCH := 0.45  ## how much longer the arms get as they straighten upward
+const ARMS_HANG := 0.75     ## how far down and back the arms hang when his hands are empty, radians
 const WALK_SPEED := 2.3   ## counter units a second (the mug is 1 wide)
 const STEP := 0.3         ## the length of one of his steps
-const BODY := 0.34        ## how much room he needs round him
+const BODY := 0.3        ## how much room he needs round him
 const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in front of the mug
 
 ## How he is posed at one moment.
@@ -106,8 +107,9 @@ var _mouse: Node3D
 var _legs: Array[Node3D] = []
 var _tail: Node3D
 var _tail_rest: Basis
-var _arms: Node3D
+var _arms: Array[Node3D] = []  # left, right
 var _arms_rest: Vector3
+var _hold := 1.0  # 1 the candy is in his hands, 0 it is tucked away and his arms hang free
 var _candy: Node3D
 var _candy_rest: Vector3
 var _stick_touch := -1
@@ -127,8 +129,8 @@ func _ready() -> void:
 	_legs = [model.find_child("LegPivotL", true, false), model.find_child("LegPivotR", true, false)]
 	_tail = model.find_child("TailPivot", true, false)
 	_tail_rest = _tail.basis
-	_arms = model.find_child("ArmsPivot", true, false)
-	_arms_rest = _arms.position
+	_arms = [model.find_child("ArmPivotL", true, false), model.find_child("ArmPivotR", true, false)]
+	_arms_rest = _arms[0].position
 	_candy = model.find_child("CandyPivot", true, false)
 	_candy_rest = _candy.position
 	var file := FileAccess.open("res://data/kitchen.json", FileAccess.READ)
@@ -198,7 +200,7 @@ func _build_stage() -> void:
 	env.background_color = Color(0.05, 0.04, 0.05)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(1.0, 0.86, 0.72)
-	env.ambient_light_energy = 0.32
+	env.ambient_light_energy = 0.2
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -206,7 +208,7 @@ func _build_stage() -> void:
 
 	var lamp := DirectionalLight3D.new()
 	lamp.light_color = Color(1.0, 0.90, 0.76)
-	lamp.light_energy = 0.55
+	lamp.light_energy = 0.4
 	lamp.shadow_enabled = true
 	lamp.directional_shadow_max_distance = 30.0
 	lamp.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(28.0), 0.0)
@@ -214,6 +216,16 @@ func _build_stage() -> void:
 
 	var kitchen := KITCHEN.instantiate()
 	add_child(kitchen)
+	# the candy cane jar is clear glass
+	for mi: MeshInstance3D in kitchen.find_children("*", "MeshInstance3D", true, false):
+		var glass := mi.mesh.surface_get_material(0) as BaseMaterial3D
+		if glass and String(glass.resource_name) == "glass":
+			glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			glass.albedo_color = Color(0.85, 0.95, 1.0, 0.22)
+			glass.roughness = 0.04
+			glass.metallic_specular = 0.9
+			glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# a real light at each lamp the model marks (Lamp_glow_<colour>_...), in the colour of its bulb
 	for mark: Node3D in kitchen.find_children("Lamp_*", "Node3D", true, false):
 		var bulb := kitchen.find_child("Bulb0", true, false) as MeshInstance3D
@@ -225,8 +237,8 @@ func _build_stage() -> void:
 				break
 		var light := OmniLight3D.new()
 		light.light_color = colour
-		light.light_energy = 0.9 if String(mark.name).contains("flame") else 0.55
-		light.omni_range = 5.0
+		light.light_energy = 1.3 if String(mark.name).contains("flame") else 0.95
+		light.omni_range = 6.5
 		light.position = mark.position
 		kitchen.add_child(light)
 		bulb = null
@@ -271,7 +283,8 @@ func step(delta: float) -> void:
 		Act.FREE:
 			_walk_about(p, delta)
 		Act.TOSS:
-			clock += delta
+			if _hold >= 0.99:  # (first he brings the candy out)
+				clock += delta
 			p.pos = _spot - Vector3(0.0, FEET, 0.0)
 			p.face = _face
 			_toss_pose(p, clock)
@@ -283,6 +296,10 @@ func step(delta: float) -> void:
 			if clock >= T_END:
 				act = Act.POP
 				clock = 0.0
+	# the candy is in his hands in the mug, when he tosses it and on the way home; walking about, it is tucked away
+	# ("The mouse shouldnt carry the candy around all the time", the user)
+	var holding := act != Act.FREE and act != Act.HOP_DOWN
+	_hold = move_toward(_hold, 1.0 if holding else 0.0, delta * 3.5)
 	_apply(p)
 	_focus = _focus.lerp(_mouse.position + Vector3(0.0, 1.05, 0.0), minf(delta * 5.0, 1.0) if delta > 0.0 else 1.0)
 	_place_camera()
@@ -452,18 +469,26 @@ func _apply(p: Pose) -> void:
 	# his arms swing up as one from the shoulders, and the candy goes with his hands until it is thrown
 	# (the bowed wire straightens as it goes up, and his shoulders shrug: that is what gets the candy clear of his nose
 	# and above his head on such short arms)
-	var swing := Basis(Vector3.RIGHT, -p.raise * ARMS_UP)
+	var lift_angle := -p.raise * ARMS_UP
+	var swing := Basis(Vector3.RIGHT, lift_angle)
 	var reach := 1.0 + ARMS_STRETCH * smoothstep(0.0, 0.45, p.raise)
-	var reaching := swing * Basis.from_scale(Vector3(1.0, reach, reach))
-	_arms.position = _arms_rest + Vector3.UP * (0.08 * clampf(p.raise, 0.0, 1.0))
-	_arms.basis = reaching
-	var held := _arms.position + reaching * (_candy_rest - _arms_rest)
+	var stretch := Basis.from_scale(Vector3(1.0, reach, reach))
+	var shrug := Vector3.UP * (0.08 * clampf(p.raise, 0.0, 1.0))
+	var ease := smoothstep(0.0, 1.0, _hold)
+	for i in 2:
+		# without the candy each arm hangs lower and swings against the leg on its side
+		var hang := ARMS_HANG + (0.9 if i == 0 else -0.9) * p.stride
+		_arms[i].position = _arms_rest + shrug
+		_arms[i].basis = Basis(Vector3.RIGHT, lerpf(hang, lift_angle, ease)) * stretch
+	var held := _arms_rest + shrug + swing * stretch * (_candy_rest - _arms_rest)
+	var grown := Vector3.ONE * maxf(ease, 0.001)  # it pops out as he brings it round, and away again
+	_candy.visible = _hold > 0.02
 	if p.flight < 0.0:
 		_candy.position = held
-		_candy.basis = swing
+		_candy.basis = swing.scaled_local(grown)
 	else:
 		_candy.position = held + Vector3.UP * (4.0 * TOSS_HEIGHT * p.flight * (1.0 - p.flight))
-		_candy.basis = swing * Basis(Vector3.RIGHT, -TAU * p.flight)
+		_candy.basis = (swing * Basis(Vector3.RIGHT, -TAU * p.flight)).scaled_local(grown)
 
 	for m in _foam:
 		m.set_shader_parameter("foam_clock", _time)
