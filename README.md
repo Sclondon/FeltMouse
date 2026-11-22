@@ -39,6 +39,18 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   `ArmPivot` and the candy from `CandyPivot`. The foam moves in
   the felt shader (the `foam_*` settings, zero on every other part). Legs and tail are not in the photo: Claude designed
   them in the toy's own manner (wrapped-wire limbs, pink felt ends).
+- **The kitchen's layout** was read off the concept picture; the window's frost and the candy canes' stripes are
+  pictures painted by the build script, and the cane jar is clear glass.
+- **The look** is a cosy night: the room is nearly dark and lit by the bulbs, the candle, the star and a low warm glow
+  (`_build_stage` in `scripts/main.gd`). Nothing is left flat: `DETAIL` there lays a grey picture (`textures/*.png`:
+  paper, felt, glaze, sugar, grain, dots, stripes, made by the kitchen build script) over every plain-coloured thing.
+  The window is a real opening onto a painted snowy night, with snow blown between the glass and the painting and
+  frost on the panes (`textures/frost_cover.png`).
+- **The garland** is GameCommon's pine tree (`scripts/pine_tree.gd`, `kit.sh install godot/pine-tree`): its needle fronds
+  grown along each swag by `PineTree.garland` (added to the component for this), from the lines in
+  `data/kitchen.json`. The Blender build makes the rope, the berries and the light string, which loops loosely with
+  bulbs at uneven gaps, each leaning its own way.
+- **The candy** is only in his hands in the mug, for a toss and on the way home (`_hold` in `scripts/main.gd`).
 - **Rogue strings and loops** are real hair-thin geometry (`fibre_*` materials), scattered over the felt parts by `shed()`
   at the end of `tools/build_mouse.py`: each call gives a part its number of loose strings and of pulled loops.
 
