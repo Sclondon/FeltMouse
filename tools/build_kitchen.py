@@ -75,8 +75,9 @@ def box(name, centre, size, material, turn=0.0):
     return o
 
 
-def blocks(x, y, r):
-    OBSTACLES.append((x, y, r))
+def blocks(x, y, r, tall=9.0):
+    """A circle he cannot walk through. tall: its height; low things (up to main.gd's CLIMB) he can jump onto."""
+    OBSTACLES.append((x, y, r, tall))
 
 
 def painted(name, pixels, rough=0.6):
@@ -595,11 +596,11 @@ for i in range(7):
     ellipsoid("Flour%d" % i, (X + random.uniform(-1.7, 1.7), Y + random.uniform(-1.0, 0.9), 0.012),
               (random.uniform(0.35, 0.9), random.uniform(0.3, 0.7), 0.012), "flour", subsurf=0)
 for k in (-1.7, -0.85, 0.0, 0.85, 1.7):
-    blocks(X + along.x * k, Y + along.y * k, 0.42)
+    blocks(X + along.x * k, Y + along.y * k, 0.42, 0.6)
 
 # the cocoa mug itself is models/mouse.glb, at the origin
-blocks(0, 0, 0.66)
-blocks(0.68, 0, 0.2)
+blocks(0, 0, 0.66, 0.8)  # (the foam: landing on it takes him home)
+blocks(0.68, 0, 0.2, 0.5)
 
 # a little Christmas tree in a pot
 X, Y = 1.4, 2.4
@@ -677,7 +678,7 @@ for i, (ox, oy, oz, kind) in enumerate(((-0.45, 0.2, 0.1, 0), (0.4, 0.3, 0.1, 1)
         a = math.tau * k / 5 + i
         ellipsoid("CookieDot%d_%d" % (i, k), (X + ox + math.cos(a) * 0.2, Y + oy + math.sin(a) * 0.2, oz + 0.1),
                   (0.06, 0.06, 0.03), "choc" if kind == 0 else "icing", subsurf=0)
-blocks(X, Y, 0.78)  # (he may tread on its rim)
+blocks(X, Y, 1.0, 0.17)  # (low: he walks up onto it)
 
 # a glass jar of candy canes
 X, Y = 8.9, 1.7
@@ -739,8 +740,8 @@ for i, ((px, py), (w, d, h), turn, wrap, ribbon) in enumerate(PRESENTS):
         torus("PresentBow%d_%d" % (i, sx), 0.13, 0.045, ribbon,
               Matrix.Translation((px, py, z0 + h + 0.1)) @ Matrix.Rotation(math.radians(turn), 4, "Z")
               @ Matrix.Translation((sx * 0.14, 0, 0)) @ Matrix.Rotation(math.radians(90), 4, "X"), segs_R=14, segs_r=6)
-blocks(11.7, -0.3, 0.85)
-blocks(13.0, -0.7, 0.75)
+blocks(11.7, -0.3, 0.85, 0.8)
+blocks(13.0, -0.7, 0.75, 1.15)
 
 # a lit candle, at the right end: GameCommon's candle component, stood here by the game (scripts/main.gd)
 X, Y = 13.9, 1.5
@@ -761,7 +762,7 @@ os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)
 with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
     # Godot: x the same, z = -y
     json.dump({"left": LEFT + 0.4, "right": RIGHT - 0.4, "front": -(FRONT + 0.4), "back": -(WALL - 0.55),
-               "obstacles": [[round(x, 3), round(-y, 3), round(r, 3)] for (x, y, r) in OBSTACLES],
+               "obstacles": [[round(x, 3), round(-y, 3), round(r, 3), tall] for (x, y, r, tall) in OBSTACLES],
                # rectangles he cannot walk into (the sink): x0, z0, x1, z1
                "boxes": [[round(x0, 3), round(-y1, 3), round(x1, 3), round(-y0, 3)] for (x0, y0, x1, y1) in BOXES],
                # each swag of the garland as points, for the pine needles the game grows along it

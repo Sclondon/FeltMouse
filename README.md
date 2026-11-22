@@ -9,10 +9,11 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
 - **What happens**: he pops out of the cocoa foam and hops down onto the counter; then you walk him about among the
   Christmas things (a bowl of oranges, a kettle, a rolling pin, a little tree, a gingerbread house, cookies, candy
   canes, a nutcracker, presents, a candle; a garland of lights and a frosty window behind).
-- **Controls, all on screen**: the stick (bottom left) walks him; the candy button has him bring out his candy and toss it over his head
-  (walking about, his hands are empty and his arms swing); the
-  mug button sends him home, where he sits down into the foam, ducks under and pops out again. Drag anywhere else to
-  look about, pinch or wheel to come closer. Keys as extras: WASD or arrows, Space to toss, H to go home.
+- **Controls, all on screen**: the stick (bottom left) walks him, with a bounce in his step and a trail of dust puffs;
+  the jump button hops him (onto the rolling pin, the presents or the cookie plate too; landing on his mug takes him
+  home); the interact button shows what it will do: beside his mug a mug (go home: he sits down into the foam, ducks
+  under and pops out again), anywhere else his candy (he brings it out and tosses it). Drag anywhere else to look
+  about, pinch or wheel to come closer. Keys as extras: WASD or arrows, Space to jump, E to interact.
 - **Run**: `godot --path C:Projectsrontrangeinstitutegameseltmouse`.
 
 ## how it is made
@@ -56,6 +57,9 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   `data/kitchen.json`. The Blender build makes the rope and the berries, and the line of a light string that loops loosely under it;
   the wire and the C9 bulbs on that line are GameCommon's Christmas lights (`christmas_lights/`,
   `kit.sh install godot/christmas-lights`), set up in `_build_stage`.
+- **Dust** is GameCommon's cloud puffs (`scripts/cloud_puffs.gd`, `kit.sh install godot/cloud-dust`, Ringtail's foot dust made
+  generic): a ring at each footfall, at take-off and on landing, called from `_walk_about`. Things he can stand on have
+  a height in `data/kitchen.json` (the fourth number of an obstacle); `CLIMB` in `scripts/main.gd` is the tallest.
 - **The candy** is only in his hands in the mug, for a toss and on the way home (`_hold` in `scripts/main.gd`).
 - **Rogue strings and loops** are real hair-thin geometry (`fibre_*` materials), scattered over the felt parts by `shed()`
   at the end of `tools/build_mouse.py`: each call gives a part its number of loose strings and of pulled loops.

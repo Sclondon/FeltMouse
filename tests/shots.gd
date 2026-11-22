@@ -9,7 +9,7 @@ const WAY := [Vector2(-3.0, 1.6), Vector2(-6.0, 0.6), Vector2(-8.2, -1.5), Vecto
 	Vector2(9.6, -0.2), Vector2(8.45, 0.3), Vector2(7.9, 1.4), Vector2(5.5, 1.6), Vector2(2.4, 1.9)]
 
 ## seconds into the run -> picture name (more are added when he tosses and goes home)
-var shots := {1.9: "pop", 3.3: "hop_down", 4.4: "walk_a", 6.6: "walk_left", 12.6: "walk_mid", 14.2: "walk_sink",
+var shots := {5.15: "jump", 5.75: "land", 1.9: "pop", 3.3: "hop_down", 4.4: "walk_a", 6.6: "walk_left", 12.6: "walk_mid", 14.2: "walk_sink",
 	17.4: "walk_right"}
 
 
@@ -42,6 +42,9 @@ func _initialize() -> void:
 	while true:
 		main.step(1.0 / fps)
 		t += 1.0 / fps
+		for at: float in [4.9, 9.5, 15.2]:  # a few jumps on the way
+			if absf(t - at) < 0.5 / fps:
+				main.jump()
 		if main.act == main.Act.FREE and main.autopilot.is_empty():
 			if not tossed:
 				tossed = true

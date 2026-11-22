@@ -58,9 +58,14 @@ const ARMS_UP := 1.6      ## how far the arms swing to hold the candy over his h
 const TOSS_HEIGHT := 0.5  ## how high the candy flies above his raised hands
 const ARMS_STRETCH := 0.45  ## how much longer the arms get as they straighten upward
 const ARMS_HANG := 0.75     ## how far down and back the arms hang when his hands are empty, radians
-const WALK_SPEED := 2.3   ## counter units a second (the mug is 1 wide)
-const STEP := 0.3         ## the length of one of his steps
+const WALK_SPEED := 2.7   ## counter units a second (the mug is 1 wide)
+const STEP := 0.36         ## the length of one of his steps
 const BODY := 0.3        ## how much room he needs round him
+const JUMP_SPEED := 6.6    ## how fast he leaves the ground: with GRAVITY, a jump about 1.35 high (he is 1.2 tall)
+const GRAVITY := 16.0
+const CLIMB := 1.3         ## the tallest thing he can land on
+const STEP_UP := 0.25      ## low enough to walk up onto without a jump (the cookie plate)
+const MUG_REACH := 2.3     ## how near his mug the interact button means "go home"
 const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in front of the mug
 const LIGHT_STRING_ENERGY := 0.07  ## each swag's one real light (the lights component multiplies it by the scale)
 
@@ -73,6 +78,9 @@ class Pose:
 	var stride := 0.0   # legs scissored for walking: left forward (+), right forward (-)
 	var face := 0.0     # which way he faces: 0 toward the room
 	var roll := 0.0     # the waddle
+	var tilt := 0.0     # leaning forward into a walk
+	var bounce := 0.0   # how much his tail bobs with his steps
+	var fling := 0.0    # empty arms thrown up (-) from where they hang
 	var raise := 0.0    # arms: 0 down holding the candy in front, 1 up over his head
 	var flight := -1.0  # the candy in the air: 0 thrown .. 1 caught (-1 it is in his hands)
 	var seen := true
@@ -116,6 +124,11 @@ var _candy_rest: Vector3
 var _stick_touch := -1
 var _look_touches := {}
 var _pinch := 0.0
+var _on_ground := true
+var _rise := 0.0    # how fast he is going up (jumping) or down
+var _trail := 0.0   # seconds of dust still to leave in the air behind a jump
+var _landed := 0.0  # 1 as he lands, fading: the squash
+var _dust: CloudPuffs
 
 
 func _ready() -> void:
@@ -134,6 +147,12 @@ func _ready() -> void:
 	_arms_rest = _arms[0].position
 	_candy = model.find_child("CandyPivot", true, false)
 	_candy_rest = _candy.position
+	# his dust: GameCommon's cloud puffs (Ringtail's foot dust), pale as flour, a ring at each step, jump and landing
+	_dust = CloudPuffs.new()
+	_dust.colour = Color(0.96, 0.94, 0.90)
+	_dust.blobs = 70
+	_dust.life = 0.5
+	add_child(_dust)
 	_hud = Hud.new()
 	_hud.game = self
 	var layer := CanvasLayer.new()
@@ -485,6 +504,10 @@ func step(delta: float) -> void:
 			p.face = _face
 			if _hop >= 1.0:
 				_spot = _hop_to
+				_on_ground = true
+				_rise = 0.0
+				_landed = 1.0
+				_dust.ring(_spot, 7, 1.2, 0.22)
 				if act == Act.HOP_DOWN:
 					act = Act.FREE
 				else:
@@ -523,17 +546,40 @@ func _start_hop(from: Vector3, to: Vector3, next: Act) -> void:
 	act = next
 
 
-## The candy button: lift it, toss it, catch it.
+## The jump button: a hop off a ring of dust. He can land on low things (the rolling pin, the presents, the
+## cookie plate), and landing on the cocoa's foam takes him home.
+func jump() -> void:
+	if act == Act.FREE and _on_ground:
+		_rise = JUMP_SPEED
+		_on_ground = false
+		_trail = 0.3
+		_dust.ring(_spot, 6, 1.1, 0.2)
+
+
+## The interact button: beside his mug it sends him home; anywhere else he brings out his candy and tosses it.
+func interact() -> void:
+	if what_interact() == "home":
+		go_home()
+	else:
+		toss()
+
+
+## What the interact button would do just now ("home" or "toss"): the button shows it.
+func what_interact() -> String:
+	return "home" if Vector2(_spot.x, _spot.z).length() < MUG_REACH and _spot.y < 0.1 else "toss"
+
+
+## He lifts his candy, tosses it and catches it.
 func toss() -> void:
-	if act == Act.FREE:
+	if act == Act.FREE and _on_ground:
 		act = Act.TOSS
 		clock = T_TOSS
 		_moving = 0.0
 
 
-## The mug button: one long hop back onto the foam, then down into it.
+## One long hop back onto the foam, then down into it.
 func go_home() -> void:
-	if act == Act.FREE:
+	if act == Act.FREE and _on_ground:
 		autopilot.clear()
 		_start_hop(_spot, Vector3(0.0, FOAM_TOP, 0.0), Act.HOP_UP)
 
@@ -563,22 +609,82 @@ func _walk_about(p: Pose, delta: float) -> void:
 		_spot.z += want.y * WALK_SPEED * delta
 		_keep_on_counter()
 		_face = lerp_angle(_face, atan2(want.x, want.y), minf(delta * 10.0, 1.0))
-		_phase += speed * WALK_SPEED * delta * PI / STEP
 		_moving = minf(_moving + delta * 8.0, 1.0)
+		if _on_ground:
+			var step_was := int(floor(_phase / PI))
+			_phase += speed * WALK_SPEED * delta * PI / STEP
+			if int(floor(_phase / PI)) != step_was and _moving > 0.6:
+				# a foot comes down: a few little puffs round it, kicked back a bit
+				var side := Vector3(cos(_face), 0.0, -sin(_face)) * (0.12 if step_was % 2 == 0 else -0.12)
+				_dust.ring(_spot + side - Vector3(want.x, 0.0, want.y) * 0.1, 3, 0.55, 0.13)
 	else:
 		_moving = maxf(_moving - delta * 6.0, 0.0)
-	p.pos = _spot - Vector3(0.0, FEET, 0.0)
-	p.pos.y += 0.035 * absf(sin(_phase)) * _moving + 0.008 * sin(_time * 3.0) * (1.0 - _moving)
-	p.stride = 0.5 * sin(_phase) * _moving
-	p.roll = 0.08 * sin(_phase) * _moving
-	p.raise = 0.04 * sin(_phase * 2.0) * _moving
+
+	# up and down: he stands on the counter or on whatever low thing is under him, and falls off its edge
+	var floor_y := _floor_at(_spot.x, _spot.z)
+	if _on_ground:
+		if floor_y < _spot.y - 0.3:
+			_on_ground = false
+			_rise = 0.0
+		else:
+			_spot.y = floor_y
+	if not _on_ground:
+		_rise -= GRAVITY * delta
+		_spot.y += _rise * delta
+		_trail -= delta
+		if _trail > 0.0:
+			_dust.puff(_spot + Vector3(randf_range(-0.12, 0.12), 0.05, randf_range(-0.12, 0.12)), Vector3(0.0, -0.3, 0.0), 0.16)
+		if _rise <= 0.0 and _spot.y <= floor_y:
+			_spot.y = floor_y
+			_on_ground = true
+			_landed = 1.0
+			_dust.ring(_spot, 7, 1.2, 0.22)
+			if is_equal_approx(floor_y, FOAM_TOP) and Vector2(_spot.x, _spot.z).length() < 0.7:
+				# onto his own mug: down into the foam he goes
+				act = Act.SIT
+				clock = T_SINK
+				_spot = Vector3(0.0, FOAM_TOP, 0.0)
+	_landed = maxf(_landed - delta * 4.5, 0.0)
+
+	# how he looks doing it: every step a little hop, stretched at its top and squashed as the foot comes down,
+	# leaning into it, legs flung well apart; in the air, stretched with his legs trailing and arms thrown up
+	var hop := absf(sin(_phase)) * _moving
 	p.face = _face
+	p.stride = 0.62 * sin(_phase) * _moving
+	p.roll = 0.11 * sin(_phase) * _moving
+	p.tilt = 0.17 * _moving
+	p.squash = 1.0 + 0.09 * (hop * 2.0 - 1.0) * _moving
+	p.bounce = 0.6 * _moving
+	var lift := 0.12 * hop + 0.008 * sin(_time * 3.0) * (1.0 - _moving)
+	if not _on_ground:
+		var up := clampf(_rise / JUMP_SPEED, -1.0, 1.0)
+		p.squash = 1.0 + 0.16 * absf(up)
+		p.kick = -0.55 * up
+		p.stride = 0.25 * sin(_time * 14.0) * (1.0 - absf(up))
+		p.fling = -0.5 - 1.0 * maxf(up, 0.0)
+		p.tilt = 0.12
+		lift = 0.0
+	p.squash *= 1.0 - 0.26 * _landed * _landed
+	p.pos = _spot + Vector3(0.0, lift - FEET * p.squash, 0.0)  # (his feet stay put however he is squashed)
 
 
-## Keeps him on the counter top and out of the things standing on it.
+## The height of what is under a point of the counter: 0, or the top of a low thing he can stand on.
+func _floor_at(x: float, z: float) -> float:
+	var top := 0.0
+	for o: Array in _walk["obstacles"]:
+		if o.size() > 3 and o[3] <= CLIMB and Vector2(x - o[0], z - o[1]).length() < o[2]:
+			top = maxf(top, o[3])
+	return top
+
+
+## Keeps him on the counter top and out of the things standing on it (unless he is above them, or they are low
+## enough to step up onto).
 func _keep_on_counter() -> void:
 	for round in 2:
 		for o: Array in _walk["obstacles"]:
+			var tall: float = o[3] if o.size() > 3 else 99.0
+			if _spot.y >= tall - 0.03 or (tall <= STEP_UP and _on_ground):
+				continue
 			var away := Vector2(_spot.x - o[0], _spot.z - o[1])
 			var room: float = o[2] + BODY
 			if away.length() < room:
@@ -684,10 +790,10 @@ func _apply(p: Pose) -> void:
 	_mouse.visible = p.seen
 	_mouse.position = p.pos
 	var wide := p.size / sqrt(p.squash)
-	_mouse.basis = (Basis(Vector3.UP, p.face) * Basis(Vector3.BACK, p.roll)).scaled_local(Vector3(wide, p.size * p.squash, wide))
+	_mouse.basis = (Basis(Vector3.UP, p.face) * Basis(Vector3.RIGHT, p.tilt) * Basis(Vector3.BACK, p.roll)).scaled_local(Vector3(wide, p.size * p.squash, wide))
 	_legs[0].rotation = Vector3(p.kick - p.stride, 0.0, 0.0)
 	_legs[1].rotation = Vector3(p.kick + p.stride, 0.0, 0.0)
-	_tail.basis = Basis(Vector3.UP, 0.3 * sin(_time * 6.0)) * Basis(Vector3.RIGHT, -0.5 * p.kick) * _tail_rest
+	_tail.basis = Basis(Vector3.UP, 0.3 * sin(_time * 6.0)) * Basis(Vector3.RIGHT, -0.5 * p.kick + 0.35 * p.bounce * sin(_phase * 2.0)) * _tail_rest
 
 	# his arms swing up as one from the shoulders, and the candy goes with his hands until it is thrown
 	# (the bowed wire straightens as it goes up, and his shoulders shrug: that is what gets the candy clear of his nose
@@ -700,7 +806,7 @@ func _apply(p: Pose) -> void:
 	var ease := smoothstep(0.0, 1.0, _hold)
 	for i in 2:
 		# without the candy each arm hangs lower and swings against the leg on its side
-		var hang := ARMS_HANG + (0.9 if i == 0 else -0.9) * p.stride
+		var hang := ARMS_HANG + p.fling + (0.9 if i == 0 else -0.9) * p.stride
 		_arms[i].position = _arms_rest + shrug
 		_arms[i].basis = Basis(Vector3.RIGHT, lerpf(hang, lift_angle, ease)) * stretch
 	var held := _arms_rest + shrug + swing * stretch * (_candy_rest - _arms_rest)
@@ -733,10 +839,10 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			var button: String = _hud.button_at(event.position)
-			if button == "toss":
-				toss()
-			elif button == "home":
-				go_home()
+			if button == "jump":
+				jump()
+			elif button == "interact":
+				interact()
 			elif _stick_touch < 0 and _hud.on_stick(event.position):
 				_stick_touch = event.index
 				stick = _hud.stick_from(event.position)
@@ -768,7 +874,7 @@ func _input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			distance = clampf(distance / 0.92, 4.0, 20.0)
 	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_SPACE or event.keycode == KEY_E:
-			toss()
-		elif event.keycode == KEY_H or event.keycode == KEY_Q:
-			go_home()
+		if event.keycode == KEY_SPACE:
+			jump()
+		elif event.keycode == KEY_E or event.keycode == KEY_ENTER:
+			interact()

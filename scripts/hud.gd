@@ -1,7 +1,8 @@
 extends Control
-## The controls drawn on the screen: the walking stick bottom left, the candy button (toss) and the mug
-## button (go home) bottom right. It only draws and measures; scripts/main.gd sorts the touches.
-## Sizes follow the screen (a phone held upright first), so nothing here is in fixed pixels.
+## The controls drawn on the screen: the walking stick bottom left, the jump button and the interact button
+## bottom right. It only draws and measures; scripts/main.gd sorts the touches.
+## The interact button shows what it would do where he stands: a mug beside his mug (go home), his candy
+## anywhere else (toss it). Sizes follow the screen (a phone held upright first): nothing here is in fixed pixels.
 
 var game: Node  # main.gd
 
@@ -26,8 +27,8 @@ func _stick_reach() -> float:
 func _buttons() -> Dictionary:
 	var u := _unit()
 	return {
-		"toss": [Vector2(size.x - u * 1.7, size.y - u * 2.7), u * 0.95],
-		"home": [Vector2(size.x - u * 3.6, size.y - u * 1.4), u * 0.75],
+		"jump": [Vector2(size.x - u * 1.7, size.y - u * 2.7), u * 0.95],
+		"interact": [Vector2(size.x - u * 3.7, size.y - u * 1.5), u * 0.82],
 	}
 
 
@@ -56,6 +57,7 @@ func _draw() -> void:
 	var u := _unit()
 	var live: bool = game.can_act()
 	var fade := 1.0 if live else 0.35
+	var white := Color(0.97, 0.96, 0.94, fade)
 	# the stick: a ring and a knob
 	var c := _stick_centre()
 	var reach := _stick_reach()
@@ -71,34 +73,40 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([tip, tip - d * u * 0.2 + side, tip - d * u * 0.2 - side]), Color(1, 1, 1, 0.5 * fade))
 
 	var all := _buttons()
-	# the candy button
-	var b: Vector2 = all["toss"][0]
-	var r: float = all["toss"][1]
+	# the jump button: a fat arrow up off a little ground line with dust at its foot
+	var b: Vector2 = all["jump"][0]
+	var r: float = all["jump"][1]
 	draw_circle(b, r, Color(0.15, 0.10, 0.10, 0.55 * fade))
 	draw_arc(b, r, 0.0, TAU, 48, Color(1, 1, 1, 0.7 * fade), u * 0.06, true)
-	var red := Color(0.86, 0.10, 0.12, fade)
-	var white := Color(0.97, 0.96, 0.94, fade)
-	var w := r * 0.42
-	var h := r * 0.30
-	draw_set_transform(b, -0.35, Vector2.ONE)
-	draw_rect(Rect2(-w, -h, w * 2.0, h * 2.0), red)
-	for k in 3:
-		var x0 := -w * 0.75 + k * w * 0.55
-		draw_colored_polygon(PackedVector2Array([Vector2(x0, h), Vector2(x0 + w * 0.22, h), Vector2(x0 + w * 0.5, -h), Vector2(x0 + w * 0.28, -h)]), white)
+	draw_colored_polygon(PackedVector2Array([b + Vector2(0, -r * 0.62), b + Vector2(-r * 0.46, -r * 0.08), b + Vector2(-r * 0.18, -r * 0.08),
+		b + Vector2(-r * 0.18, r * 0.36), b + Vector2(r * 0.18, r * 0.36), b + Vector2(r * 0.18, -r * 0.08), b + Vector2(r * 0.46, -r * 0.08)]), white)
 	for s: float in [-1.0, 1.0]:
-		draw_colored_polygon(PackedVector2Array([Vector2(s * w, 0.0), Vector2(s * (w + r * 0.36), -h * 1.25), Vector2(s * (w + r * 0.36), h * 1.25)]), red)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# an arrow up over it: toss
-	draw_colored_polygon(PackedVector2Array([b + Vector2(0, -r * 0.82), b + Vector2(-r * 0.2, -r * 0.55), b + Vector2(r * 0.2, -r * 0.55)]), white)
+		draw_circle(b + Vector2(s * r * 0.42, r * 0.48), r * 0.11, Color(1, 1, 1, 0.6 * fade))
+		draw_circle(b + Vector2(s * r * 0.24, r * 0.56), r * 0.08, Color(1, 1, 1, 0.6 * fade))
 
-	# the mug button
-	b = all["home"][0]
-	r = all["home"][1]
+	# the interact button: what he would do here
+	b = all["interact"][0]
+	r = all["interact"][1]
 	draw_circle(b, r, Color(0.15, 0.10, 0.10, 0.55 * fade))
 	draw_arc(b, r, 0.0, TAU, 48, Color(1, 1, 1, 0.7 * fade), u * 0.06, true)
-	var brown := Color(0.50, 0.30, 0.16, fade)
-	draw_arc(b + Vector2(r * 0.34, r * 0.12), r * 0.22, -PI / 2.0, PI / 2.0, 16, brown, r * 0.11, true)
-	draw_rect(Rect2(b.x - r * 0.42, b.y - r * 0.22, r * 0.76, r * 0.68), brown)
-	draw_circle(b + Vector2(-r * 0.2, -r * 0.24), r * 0.2, white)
-	draw_circle(b + Vector2(0.02 * r, -r * 0.32), r * 0.22, white)
-	draw_circle(b + Vector2(r * 0.2, -r * 0.24), r * 0.18, white)
+	if String(game.what_interact()) == "home":
+		# his mug
+		var brown := Color(0.50, 0.30, 0.16, fade)
+		draw_arc(b + Vector2(r * 0.34, r * 0.12), r * 0.22, -PI / 2.0, PI / 2.0, 16, brown, r * 0.11, true)
+		draw_rect(Rect2(b.x - r * 0.42, b.y - r * 0.22, r * 0.76, r * 0.68), brown)
+		draw_circle(b + Vector2(-r * 0.2, -r * 0.24), r * 0.2, white)
+		draw_circle(b + Vector2(0.02 * r, -r * 0.32), r * 0.22, white)
+		draw_circle(b + Vector2(r * 0.2, -r * 0.24), r * 0.18, white)
+	else:
+		# his candy
+		var red := Color(0.86, 0.10, 0.12, fade)
+		var w := r * 0.42
+		var h := r * 0.30
+		draw_set_transform(b, -0.35, Vector2.ONE)
+		draw_rect(Rect2(-w, -h, w * 2.0, h * 2.0), red)
+		for k in 3:
+			var x0 := -w * 0.75 + k * w * 0.55
+			draw_colored_polygon(PackedVector2Array([Vector2(x0, h), Vector2(x0 + w * 0.22, h), Vector2(x0 + w * 0.5, -h), Vector2(x0 + w * 0.28, -h)]), white)
+		for s: float in [-1.0, 1.0]:
+			draw_colored_polygon(PackedVector2Array([Vector2(s * w, 0.0), Vector2(s * (w + r * 0.36), -h * 1.25), Vector2(s * (w + r * 0.36), h * 1.25)]), red)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
