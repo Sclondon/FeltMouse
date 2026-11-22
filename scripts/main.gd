@@ -8,7 +8,8 @@ extends Node3D
 
 const FELT: Shader = preload("res://shaders/felt.gdshader")
 const MODEL: PackedScene = preload("res://models/mouse.glb")
-const SHELLS := 14
+const SHELLS := 14  ## layers of fuzz on a computer
+const SHELLS_PHONE := 8  ## fewer on a phone in a browser, where every layer is drawn over the last
 
 ## Fuzz by material name: length off the skin (model units; the mug is 1 wide), fibres per unit,
 ## how tall the ordinary fuzz stands (0..1 of the length), the share of long loose fibres.
@@ -79,9 +80,12 @@ var _arms: Node3D
 var _candy: Node3D
 var _candy_rest: Vector3
 var _arms_rest: Vector3
+var _shells := SHELLS
 
 
 func _ready() -> void:
+	if OS.has_feature("web_android") or OS.has_feature("web_ios"):
+		_shells = SHELLS_PHONE
 	_build_stage()
 	var model := MODEL.instantiate()
 	add_child(model)
@@ -118,7 +122,7 @@ func _dress(mi: MeshInstance3D) -> void:
 			src.roughness = 1.0
 		return
 	mi.set_surface_override_material(0, _felt(kind, src.albedo_color, 0, foam))
-	for i in range(1, SHELLS + 1):
+	for i in range(1, _shells + 1):
 		var shell := MeshInstance3D.new()
 		shell.mesh = mi.mesh
 		shell.material_override = _felt(kind, src.albedo_color, i, foam)
@@ -133,7 +137,7 @@ func _felt(kind: String, colour: Color, shell: int, foam: bool) -> ShaderMateria
 	var m := ShaderMaterial.new()
 	m.shader = FELT
 	m.set_shader_parameter("tint", colour)
-	m.set_shader_parameter("layer", float(shell) / SHELLS)
+	m.set_shader_parameter("layer", float(shell) / _shells)
 	if LOOKS.has(kind):
 		var look: Dictionary = LOOKS[kind]
 		for k: String in look:
