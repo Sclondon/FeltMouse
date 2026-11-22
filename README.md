@@ -1,0 +1,25 @@
+# Felt Mouse
+
+A little felt mouse sitting in a mug of cocoa, recreated from a photo (`art_src/reference_photo.jpg`), on a turntable.
+Godot 4.7, GL Compatibility, portrait. Placeholder name.
+
+- **Turn it**: drag. **Closer / further**: pinch or mouse wheel. It turns slowly by itself until touched.
+- **Run**: open the project in Godot and press play, or
+  `godot --path C:\Projects\FrontRangeInstituteGames\FeltMouse`.
+
+## How it is made
+
+- **The model** is built in Blender by `tools/build_mouse.py`, which saves the editable `tools/mouse.blend` and
+  exports `models/mouse.glb` (33 parts: mug, handle, stitched snowflake, two folds of cream, body, head, ears, bead
+  eyes, pompom nose, the one stiff whisker, scarf, wire arms with pink hands, a three-layer felt candy, the wafer
+  straw with its spiral). One unit is about the mug's width.
+  `blender -b --factory-startup --python tools/build_mouse.py`, then `godot --headless --path . --import`.
+- **The felt** is `shaders/felt.gdshader`: one program for every felt part. `scripts/main.gd` reads each part's
+  material name (`felt_*`, `fleece_*`) and draws it as a matte skin plus 14 shells of fuzz; `LOOKS` in that script
+  sets fuzz length, fibre density and loose fibres per material (the mug is the hairiest). `bead_*` parts are shiny
+  plastic, `thread_*` plain thread.
+
+## Checking
+
+- Model from six sides: `blender -b tools/mouse.blend --python tools/look.py -- <out dir>`
+- In-engine pictures: `godot --path . --audio-driver Dummy --resolution 540x960 -s res://tests/shots.gd -- --out=<dir>`
