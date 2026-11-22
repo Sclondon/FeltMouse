@@ -42,6 +42,8 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   them in the toy's own manner (wrapped-wire limbs, pink felt ends).
 - **The kitchen's layout** was read off the concept picture; the window's frost and the candy canes' stripes are
   pictures painted by the build script, and the cane jar is clear glass.
+- **The presents** are a heap from GameCommon's presents component (`presents/`, `kit.sh install godot/presents`), made
+  smaller than life; the game turns the heap's footprints into things he walks round or jumps onto.
 - **The candle** is GameCommon's candle component (`candle/`, `kit.sh install godot/candle`): a cream pillar ringed with
   holly, with its own flame and flickering light, stood at the place the kitchen build writes to `data/kitchen.json`.
 - **The sink** under the window is a basin let into the counter (the counter top is in pieces round it) with a tap; he

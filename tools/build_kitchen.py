@@ -727,21 +727,9 @@ for sx in (-1, 1):
     nut(ellipsoid("NutEye%d" % sx, (sx * 0.11, -0.275, 2.18), (0.035, 0.02, 0.045), "black", subsurf=0))
 blocks(X, Y, 0.6)
 
-# wrapped presents
-PRESENTS = [((11.6, -0.3), (1.3, 1.0, 0.8), 12, "wrap_red", "ribbon_gold"),
-            ((13.0, -0.7), (0.95, 0.95, 1.15), -18, "wrap_green", "ribbon_red"),
-            ((12.1, -0.15), (0.7, 0.6, 0.45), 30, "wrap_gold", "ribbon_white")]
-for i, ((px, py), (w, d, h), turn, wrap, ribbon) in enumerate(PRESENTS):
-    z0 = 0.8 if i == 2 else 0.0  # the little one sits on the red one
-    box("Present%d" % i, (px, py, z0 + h / 2), (w, d, h), wrap, turn)
-    box("PresentRibbonA%d" % i, (px, py, z0 + h / 2 + 0.005), (w + 0.02, d * 0.16, h + 0.02), ribbon, turn)
-    box("PresentRibbonB%d" % i, (px, py, z0 + h / 2 + 0.005), (w * 0.16, d + 0.02, h + 0.02), ribbon, turn)
-    for sx in (-1, 1):
-        torus("PresentBow%d_%d" % (i, sx), 0.13, 0.045, ribbon,
-              Matrix.Translation((px, py, z0 + h + 0.1)) @ Matrix.Rotation(math.radians(turn), 4, "Z")
-              @ Matrix.Translation((sx * 0.14, 0, 0)) @ Matrix.Rotation(math.radians(90), 4, "X"), segs_R=14, segs_r=6)
-blocks(11.7, -0.3, 0.85, 0.8)
-blocks(13.0, -0.7, 0.75, 1.15)
+# wrapped presents: a small heap from GameCommon's presents component, set down here by the game (scripts/main.gd),
+# which also takes its footprints to keep him out of them
+PRESENTS_AT = (12.3, -0.45)
 
 # a lit candle, at the right end: GameCommon's candle component, stood here by the game (scripts/main.gd)
 X, Y = 13.9, 1.5
@@ -768,6 +756,7 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
                # each swag of the garland as points, for the pine needles the game grows along it
                "garland": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in GARLAND],
                "candle": [CANDLE_AT[0], 0.0, -CANDLE_AT[1]],
+               "presents": [PRESENTS_AT[0], 0.0, -PRESENTS_AT[1]],
                "light_strings": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in LIGHT_STRINGS],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are
                "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,

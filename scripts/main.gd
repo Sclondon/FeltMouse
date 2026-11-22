@@ -429,6 +429,20 @@ func _build_stage() -> void:
 		candle.position = Vector3(at[0], at[1], at[2])
 		add_child(candle)
 
+	# the presents: a small heap from GameCommon's presents, smaller than life so they sit by the nutcracker like toys;
+	# each one on the counter becomes a thing he walks round or jumps onto
+	if _walk.has("presents"):
+		var spot: Array = _walk["presents"]
+		var heap := Present.pile(4, Present.Palette.CLASSIC, 5, 7.0)
+		heap.low_detail = phone
+		heap.position = Vector3(spot[0], spot[1], spot[2])
+		add_child(heap)
+		for mark: Dictionary in heap.footprints():
+			var middle: Vector3 = mark["centre"]
+			var half: Vector2 = mark["half"]
+			var reach: float = mark["radius"] if mark["round"] else (half.x + half.y) * 0.5
+			(_walk["obstacles"] as Array).append([middle.x, middle.z, reach, float(mark["height"])])
+
 	# a snow storm blowing past outside the window, between the glass and the painted night
 	if _walk.has("window"):
 		var w: Dictionary = _walk["window"]
@@ -866,7 +880,7 @@ func _input(event: InputEvent) -> void:
 					distance = clampf(distance * _pinch / gap, 4.0, 20.0)
 				_pinch = gap
 			else:
-				yaw = clampf(yaw - event.relative.x * 0.006, -1.15, 1.15)
+				yaw = clampf(yaw - event.relative.x * 0.006, -0.8, 0.8)  # (further round, the camera ends up inside the cabinets)
 				pitch = clampf(pitch + event.relative.y * 0.005, 0.12, 1.2)
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
