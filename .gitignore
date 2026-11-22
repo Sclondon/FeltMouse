@@ -2,3 +2,4 @@
 *.blend1
 tools/look_*/
 tests/shots_*/
+tests/gif_frames/

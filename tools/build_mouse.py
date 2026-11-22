@@ -273,8 +273,10 @@ for side, sx in (("L", -1), ("R", 1)):
 tube("Whisker", [(-0.29, -0.295, 1.235), (0.29, -0.295, 1.170)], 0.0055, "bead_black", segs=6)
 
 # the scarf
-torus("Scarf", 0.17, 0.06, "felt_red",
-      Matrix.Translation((0, 0.02, 1.065)) @ Matrix.Rotation(math.radians(-6), 4, "X") @ Matrix.Diagonal((1.05, 1, 1.15, 1)))
+# his collar: a flat band of red felt round the neck (a ring, not a fat tube), a little wider at the bottom
+collar = lathe("Scarf", [(0.12, -0.042), (0.192, -0.048), (0.203, -0.034), (0.196, 0.034), (0.186, 0.046), (0.12, 0.04),
+                         (0.12, -0.042)], "felt_red")
+collar.data.transform(Matrix.Translation((0, 0.03, 1.07)) @ Matrix.Rotation(math.radians(-6), 4, "X"))
 
 # arms: thin wrapped wire, bowed out to the sides and down round the candy, pink hands on the cream
 ARMS = {
@@ -443,7 +445,7 @@ shed("FibresCream", ["CreamLower", "CreamUpper", "MugFoot"], "fibre_white", 110,
      lambda p, n: (p.z < 0.1 or n.z > -0.2) and (p.z < 0.1 or flat_r(p) > 0.24))
 shed("FibresMouse", ["Body", "Head", "EarL", "EarR", "ArmL", "ArmR"], "fibre_white", 120, 60,
      lambda p, n: p.z > 0.68 and not (p.y < -0.12 and 1.1 < p.z < 1.36 and abs(p.x) < 0.14))
-shed("FibresScarf", ["Scarf"], "fibre_red", 45, 30)
+shed("FibresScarf", ["Scarf"], "fibre_red", 22, 14, lambda p, n: n.x * p.x + n.y * (p.y - 0.03) > 0.0)
 shed("FibresWafer", ["Wafer"], "fibre_brown", 25, 10, lambda p, n: p.z > 0.85)
 
 # ---------------------------------------------------------------- the mouse as one thing to move
