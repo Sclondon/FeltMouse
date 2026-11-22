@@ -80,9 +80,9 @@ class Pose:
 	var ring := 0.0     # a splash ring's height
 	var ring_at := 0.0  # and how far out it has run
 
-var yaw := 0.25
-var pitch := 0.42
-var distance := 7.5
+var yaw := 0.2
+var pitch := 0.36
+var distance := 13.0
 var playing := true  ## false: a test steps the game itself (step)
 var act := Act.POP
 var clock := 0.0     ## the set pieces' clock
@@ -133,9 +133,6 @@ func _ready() -> void:
 	_arms_rest = _arms[0].position
 	_candy = model.find_child("CandyPivot", true, false)
 	_candy_rest = _candy.position
-	var file := FileAccess.open("res://data/kitchen.json", FileAccess.READ)
-	if file:
-		_walk = JSON.parse_string(file.get_as_text())
 	_hud = Hud.new()
 	_hud.game = self
 	var layer := CanvasLayer.new()
@@ -193,58 +190,190 @@ func _felt(kind: String, colour: Color, shell: int, foam: bool) -> ShaderMateria
 	return m
 
 
+## Detail pictures laid over the kitchen's plain-coloured materials, so nothing is flat (a storybook made of
+## paper, felt and glazed clay). Material name starts with -> [picture, repeats to a unit, bump picture, bump].
+## Anything not listed is painted paper. The pictures are textures/*.png, made by tools/build_kitchen.py.
+const DETAIL := {
+	"pine": ["felt", 0.8, "felt_n", 1.0], "berry": ["felt", 1.4, "felt_n", 0.5], "soil": ["felt", 1.0, "felt_n", 1.0],
+	"orange": ["felt", 1.6, "felt_n", 0.35], "wire": ["felt", 1.0, "felt_n", 0.5],
+	"trunk": ["grain", 1.0, "felt_n", 0.6], "pin_wood": ["grain", 0.5, "paper_n", 0.4],
+	"ceramic": ["glaze", 0.4, "paper_n", 0.12], "kettle": ["glaze", 0.4, "paper_n", 0.12],
+	"plate": ["glaze", 0.4, "paper_n", 0.12], "steel": ["glaze", 0.4, "paper_n", 0.1], "glow_": ["glaze", 0.9, "paper_n", 0.0],
+	"icing": ["sugar", 1.1, "felt_n", 0.45], "gumdrop": ["sugar", 2.2, "felt_n", 0.6], "flour": ["sugar", 1.0, "felt_n", 0.5],
+	"cookie": ["sugar", 1.6, "felt_n", 0.8], "gingerbread": ["felt", 0.9, "felt_n", 0.7], "choc": ["glaze", 1.0, "paper_n", 0.2],
+	"wrap_red": ["dots", 1.3, "paper_n", 0.3], "wrap_green": ["stripes", 1.0, "paper_n", 0.3],
+	"wrap_gold": ["dots", 2.4, "paper_n", 0.3], "wax": ["glaze", 0.8, "paper_n", 0.25],
+}
+const DETAIL_PLAIN := ["paper", 0.3, "paper_n", 0.8]
+
+var _pictures := {}
+
+
+func _picture(nm: String) -> Texture2D:
+	if not _pictures.has(nm):
+		# (through an Image, to give it mipmaps: seen small, a fine picture would otherwise crawl)
+		var img := (load("res://textures/%s.png" % nm) as Texture2D).get_image()
+		if img.is_compressed():
+			img.decompress()
+		img.generate_mipmaps()
+		_pictures[nm] = ImageTexture.create_from_image(img)
+	return _pictures[nm]
+
+
+func _texture_kitchen(kitchen: Node) -> void:
+	var done := {}
+	for mi: MeshInstance3D in kitchen.find_children("*", "MeshInstance3D", true, false):
+		var m := mi.mesh.surface_get_material(0) as BaseMaterial3D
+		if m == null or done.has(m):
+			continue
+		done[m] = true
+		var nm := String(m.resource_name)
+		if nm == "glass":
+			# the candy cane jar is clear glass
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.albedo_color = Color(0.85, 0.95, 1.0, 0.22)
+			m.roughness = 0.04
+			m.metallic_specular = 0.9
+			m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			continue
+		if nm == "night_outside":
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED  # the night lights itself
+			m.albedo_color = Color(0.8, 0.8, 0.8)
+			continue
+		if nm == "window_frost":
+			# ice where textures/frost_cover.png is white, clear glass where it is black
+			var cover := (load("res://textures/frost_cover.png") as Texture2D).get_image()
+			if cover.is_compressed():
+				cover.decompress()
+			var ice := Image.create(cover.get_width(), cover.get_height(), false, Image.FORMAT_RGBA8)
+			for py in cover.get_height():
+				for px in cover.get_width():
+					var c := cover.get_pixel(px, py).r
+					ice.set_pixel(px, py, Color(0.74 + 0.2 * c, 0.84 + 0.12 * c, 0.97, c))
+			ice.generate_mipmaps()
+			m.albedo_texture = ImageTexture.create_from_image(ice)
+			m.albedo_color = Color.WHITE
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			m.emission_enabled = true  # the ice catches the room's light
+			m.emission = Color(0.10, 0.13, 0.20)
+			continue
+		if m.albedo_texture != null:
+			continue  # wood, tiles, candy canes: they have pictures of their own
+		var look: Array = DETAIL_PLAIN
+		for key: String in DETAIL:
+			if nm.begins_with(key):
+				look = DETAIL[key]
+				break
+		m.albedo_texture = _picture(look[0])
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = true
+		m.uv1_scale = Vector3.ONE * float(look[1])
+		if float(look[3]) > 0.0:
+			m.normal_enabled = true
+			m.normal_texture = _picture(look[2])
+			m.normal_scale = float(look[3])
+		if not nm.begins_with("glow_"):
+			m.albedo_color = m.albedo_color.lightened(0.12)  # (the picture is greys under white: make up some of it)
+
+
 func _build_stage() -> void:
-	# a kitchen at night: a warm lamp from over the player's shoulder, the Christmas lights doing the rest
+	var phone := OS.has_feature("web_android") or OS.has_feature("web_ios")
+	var file := FileAccess.open("res://data/kitchen.json", FileAccess.READ)
+	if file:
+		_walk = JSON.parse_string(file.get_as_text())
+
+	# A cosy Christmas night ("needs to feel more cozy Christmas night rather than bright blast", the user): the room
+	# itself is nearly dark; the light is the string of bulbs, the candle, the tree's star and a low warm glow.
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.05, 0.04, 0.05)
+	env.background_color = Color(0.012, 0.012, 0.025)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(1.0, 0.86, 0.72)
-	env.ambient_light_energy = 0.2
+	env.ambient_light_color = Color(0.50, 0.55, 0.85)
+	env.ambient_light_energy = 0.11
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	if not phone:
+		env.glow_enabled = true
+		env.glow_intensity = 0.55
+		env.glow_bloom = 0.04
+		env.glow_hdr_threshold = 0.95
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 
+	# one faint warm lamp from over the player's shoulder, for the shadows that sit things on the counter
 	var lamp := DirectionalLight3D.new()
-	lamp.light_color = Color(1.0, 0.90, 0.76)
-	lamp.light_energy = 0.4
+	lamp.light_color = Color(1.0, 0.80, 0.58)
+	lamp.light_energy = 0.2
 	lamp.shadow_enabled = true
-	lamp.directional_shadow_max_distance = 30.0
+	lamp.directional_shadow_max_distance = 34.0
 	lamp.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(28.0), 0.0)
 	add_child(lamp)
 
 	var kitchen := KITCHEN.instantiate()
 	add_child(kitchen)
-	# the candy cane jar is clear glass
-	for mi: MeshInstance3D in kitchen.find_children("*", "MeshInstance3D", true, false):
-		var glass := mi.mesh.surface_get_material(0) as BaseMaterial3D
-		if glass and String(glass.resource_name) == "glass":
-			glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			glass.albedo_color = Color(0.85, 0.95, 1.0, 0.22)
-			glass.roughness = 0.04
-			glass.metallic_specular = 0.9
-			glass.cull_mode = BaseMaterial3D.CULL_DISABLED
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_texture_kitchen(kitchen)
 	# a real light at each lamp the model marks (Lamp_glow_<colour>_...), in the colour of its bulb
+	var glows := {}
+	for mi: MeshInstance3D in kitchen.find_children("*", "MeshInstance3D", true, false):
+		var mat := mi.mesh.surface_get_material(0) as BaseMaterial3D
+		if mat and String(mat.resource_name).begins_with("glow_"):
+			glows[String(mat.resource_name)] = mat.albedo_color
 	for mark: Node3D in kitchen.find_children("Lamp_*", "Node3D", true, false):
-		var bulb := kitchen.find_child("Bulb0", true, false) as MeshInstance3D
 		var colour := Color(1.0, 0.8, 0.5)
-		for mi: MeshInstance3D in kitchen.find_children("*", "MeshInstance3D", true, false):
-			var mat := mi.mesh.surface_get_material(0) as BaseMaterial3D
-			if mat and String(mark.name).contains(String(mat.resource_name)) and String(mat.resource_name).begins_with("glow_"):
-				colour = mat.albedo_color
-				break
+		for nm: String in glows:
+			if String(mark.name).contains(nm):
+				colour = glows[nm]
+		var flame := String(mark.name).contains("flame")
 		var light := OmniLight3D.new()
-		light.light_color = colour
-		light.light_energy = 1.3 if String(mark.name).contains("flame") else 0.95
-		light.omni_range = 6.5
+		light.light_color = colour.lerp(Color(1.0, 0.85, 0.6), 0.25)
+		light.light_energy = 2.1 if flame else 1.15
+		light.omni_range = 11.0 if flame else 7.5
+		light.omni_attenuation = 1.4
 		light.position = mark.position
 		kitchen.add_child(light)
-		bulb = null
+	# the low warm glow of the room behind the player, along the counter
+	for x: float in [-5.0, 3.0, 10.5]:
+		var glow := OmniLight3D.new()
+		glow.light_color = Color(1.0, 0.66, 0.36)
+		glow.light_energy = 0.5
+		glow.omni_range = 10.0
+		glow.omni_attenuation = 1.2
+		glow.position = Vector3(x, 3.4, 2.4)
+		add_child(glow)
+
+	# a snow storm blowing past outside the window, between the glass and the painted night
+	if _walk.has("window"):
+		var w: Dictionary = _walk["window"]
+		var snow := CPUParticles3D.new()
+		snow.amount = 140 if phone else 340
+		snow.lifetime = 2.4
+		snow.preprocess = 3.0
+		snow.local_coords = true
+		snow.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		snow.emission_box_extents = Vector3(w["wide"] * 0.5 + 3.0, 0.3, (w["glass"] - w["night"]) * 0.2)
+		snow.position = Vector3(w["x"] + 2.6, w["y"] + w["tall"] * 0.5 + 1.2, w["glass"] * 0.42 + w["night"] * 0.58)
+		snow.direction = Vector3(-0.6, -1.0, 0.0)
+		snow.spread = 3.0  # (kept narrow: a wide cone sends flakes through the wall into the room)
+		snow.initial_velocity_min = 2.6
+		snow.initial_velocity_max = 4.4
+		snow.gravity = Vector3(-1.8, -1.2, 0.0)
+		snow.scale_amount_min = 0.5
+		snow.scale_amount_max = 1.5
+		var flake := QuadMesh.new()
+		flake.size = Vector2(0.085, 0.085)
+		var white := StandardMaterial3D.new()
+		white.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		white.albedo_color = Color(0.86, 0.90, 1.0)
+		white.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		white.billboard_keep_scale = true
+		flake.material = white
+		snow.mesh = flake
+		add_child(snow)
 
 	_camera = Camera3D.new()
-	_camera.fov = 40.0
+	_camera.fov = 36.0
 	add_child(_camera)
 
 
@@ -301,7 +430,7 @@ func step(delta: float) -> void:
 	var holding := act != Act.FREE and act != Act.HOP_DOWN
 	_hold = move_toward(_hold, 1.0 if holding else 0.0, delta * 3.5)
 	_apply(p)
-	_focus = _focus.lerp(_mouse.position + Vector3(0.0, 1.05, 0.0), minf(delta * 5.0, 1.0) if delta > 0.0 else 1.0)
+	_focus = _focus.lerp(_mouse.position + Vector3(0.0, 2.1, 0.0), minf(delta * 5.0, 1.0) if delta > 0.0 else 1.0)
 	_place_camera()
 	_hud.queue_redraw()
 
@@ -534,16 +663,16 @@ func _input(event: InputEvent) -> void:
 				var pts: Array = _look_touches.values()
 				var gap: float = (pts[0] as Vector2).distance_to(pts[1])
 				if _pinch > 0.0 and gap > 0.0:
-					distance = clampf(distance * _pinch / gap, 3.5, 13.0)
+					distance = clampf(distance * _pinch / gap, 4.0, 20.0)
 				_pinch = gap
 			else:
 				yaw = clampf(yaw - event.relative.x * 0.006, -1.15, 1.15)
 				pitch = clampf(pitch + event.relative.y * 0.005, 0.12, 1.2)
 	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			distance = clampf(distance * 0.92, 3.5, 13.0)
+			distance = clampf(distance * 0.92, 4.0, 20.0)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			distance = clampf(distance / 0.92, 3.5, 13.0)
+			distance = clampf(distance / 0.92, 4.0, 20.0)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_SPACE or event.keycode == KEY_E:
 			toss()

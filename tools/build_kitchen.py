@@ -77,10 +77,10 @@ def blocks(x, y, r):
 
 def painted(name, pixels, rough=0.6):
     """A material that wears a picture (pixels: height x width x 3, 0..1)."""
-    h, w, _ = pixels.shape
+    h, w = pixels.shape[:2]
     img = bpy.data.images.new(name, w, h)
     rgba = np.ones((h, w, 4), dtype=np.float32)
-    rgba[:, :, :3] = pixels
+    rgba[:, :, :pixels.shape[2]] = pixels  # (a fourth channel is how clear it is)
     img.pixels.foreach_set(rgba.ravel())
     img.pack()
     m = bpy.data.materials.new(name)
@@ -89,11 +89,14 @@ def painted(name, pixels, rough=0.6):
     tex = m.node_tree.nodes.new("ShaderNodeTexImage")
     tex.image = img
     m.node_tree.links.new(tex.outputs["Color"], b.inputs["Base Color"])
+    if pixels.shape[2] == 4:
+        m.node_tree.links.new(tex.outputs["Alpha"], b.inputs["Alpha"])
+        m.blend_method = "BLEND"
     b.inputs["Roughness"].default_value = rough
     return m
 
 
-def sheet(name, corners, material, per_unit):
+def sheet(name, corners, material, per_unit, origin=None):
     """One flat four-cornered face wearing a repeating picture. corners go round anticlockwise seen from outside;
     the picture runs along the first edge (u) and the last (v), per_unit repeats to a unit."""
     bm = bmesh.new()
@@ -104,7 +107,7 @@ def sheet(name, corners, material, per_unit):
     eu = (Vector(corners[1]) - a)
     ev = (Vector(corners[3]) - a)
     for loop in f.loops:
-        d = loop.vert.co - a
+        d = loop.vert.co - (Vector(origin) if origin else a)  # (origin: where the picture starts, shared by pieces)
         loop[uv].uv = (d.dot(eu.normalized()) * per_unit[0], d.dot(ev.normalized()) * per_unit[1])
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
@@ -183,8 +186,10 @@ def frost_picture():
     sparkle = (rng.random((n, n)) > 0.988) * frost * 0.25
     night = np.array([0.02, 0.05, 0.15])
     ice = np.array([0.78, 0.88, 0.97])
-    pix = night[None, None, :] * (1 - cover[:, :, None]) + ice[None, None, :] * cover[:, :, None] + sparkle[:, :, None]
-    return np.clip(pix, 0, 1).astype(np.float32)
+    pix = np.zeros((n, n, 4), dtype=np.float32)  # the ice, and how much of the glass it covers
+    pix[:, :, :3] = ice[None, None, :] + sparkle[:, :, None]
+    pix[:, :, 3] = 0.05 + 0.95 * cover
+    return np.clip(pix, 0, 1)
 
 
 def cane_picture():
@@ -246,8 +251,6 @@ sheet("CounterTop", [(LEFT - 3, FRONT, 0), (RIGHT + 3, FRONT, 0), (RIGHT + 3, WA
       (0.25, 0.25))
 sheet("CounterEdge", [(LEFT - 3, FRONT, -0.55), (RIGHT + 3, FRONT, -0.55), (RIGHT + 3, FRONT, 0), (LEFT - 3, FRONT, 0)],
       WOOD, (0.25, 0.25))
-sheet("Wall", [(LEFT - 3, WALL, 0), (RIGHT + 3, WALL, 0), (RIGHT + 3, WALL, 7.6), (LEFT - 3, WALL, 7.6)], TILE,
-      (1 / 1.9, 1 / 1.9))
 # lower cabinets under the counter, set back a little, with doors, drawers and handles
 box("LowerCabinets", (0, FRONT + 0.35 + 3.0, -0.55 - 6.0), (RIGHT - LEFT + 6, 6.0, 12.0), "cabinet_dark")
 x = LEFT - 2.6
@@ -266,6 +269,11 @@ while x < RIGHT + 2.0:
     door += 1
 # upper cabinets either side of the window
 WIN_L, WIN_R, WIN_B, WIN_T = 3.1, 8.0, 2.3, 7.3
+# the tiled wall, in four pieces round the window's opening (one picture across them all)
+for nm, (x0, x1, z0, z1) in (("WallLeft", (LEFT - 3, WIN_L, 0, 7.6)), ("WallRight", (WIN_R, RIGHT + 3, 0, 7.6)),
+                             ("WallBelow", (WIN_L, WIN_R, 0, WIN_B)), ("WallAbove", (WIN_L, WIN_R, WIN_T, 7.6))):
+    sheet(nm, [(x0, WALL, z0), (x1, WALL, z0), (x1, WALL, z1), (x0, WALL, z1)], TILE, (1 / 1.9, 1 / 1.9),
+          origin=(LEFT - 3, WALL, 0))
 for nm, x0, x1 in (("UpperLeft", LEFT - 3, WIN_L - 0.9), ("UpperRight", WIN_R + 0.9, RIGHT + 3)):
     box(nm, ((x0 + x1) / 2, WALL - 1.3, 7.6 + 3.0), (x1 - x0, 2.6, 6.0), "cabinet")
     n = max(1, round((x1 - x0) / 3.4))
@@ -289,9 +297,149 @@ for nm, c, s in (("FrameL", (WIN_L, WALL - 0.15, (WIN_B + WIN_T) / 2), (0.36, 0.
                  ("Sill", ((WIN_L + WIN_R) / 2, WALL - 0.35, WIN_B - 0.1), (WIN_R - WIN_L + 0.9, 0.8, 0.22))):
     box("Window" + nm, c, s, "window_frame")
 
+# ---------------------------------------------------------------- outside the window: a snowy night
+# The window is a real opening: behind the glass is a short tunnel through the wall and, set back, a painted
+# night (snowy hills, pines, a neighbour's lit window). The game blows snow through the gap between them.
+def night_picture():
+    n = 256
+    yy, xx = np.mgrid[0:n, 0:n] / (n - 1.0)  # yy 0 at the bottom
+    low = np.array([0.13, 0.18, 0.34])
+    high = np.array([0.02, 0.03, 0.10])
+    pix = low[None, None, :] * (1 - yy[:, :, None]) + high[None, None, :] * yy[:, :, None]
+    far_hill = 0.42 + 0.05 * np.sin(xx * 5.0 + 1.0) + 0.02 * np.sin(xx * 13.0)
+    pix[yy < far_hill] = (0.20, 0.26, 0.42)
+    # a neighbour's house on the far hill, one window lit
+    house = (np.abs(xx - 0.74) < 0.07) & (yy > 0.40) & (yy < 0.52)
+    roof = (np.abs(xx - 0.74) < 0.09 * (1 - (yy - 0.52) / 0.07)) & (yy >= 0.52) & (yy < 0.59)
+    pix[house] = (0.05, 0.06, 0.12)
+    pix[roof] = (0.55, 0.62, 0.78)
+    pix[(np.abs(xx - 0.72) < 0.014) & (np.abs(yy - 0.455) < 0.02)] = (1.0, 0.72, 0.30)
+    for cx, base, tall, wide in ((0.14, 0.30, 0.50, 0.11), (0.33, 0.34, 0.36, 0.08), (0.93, 0.28, 0.56, 0.12), (0.55, 0.36, 0.26, 0.06)):
+        up = (yy - base) / tall
+        tier = (up * 4.0) % 1.0
+        tree = (up > 0) & (up < 1) & (np.abs(xx - cx) < wide * (1 - up) * (1.25 - 0.5 * tier))
+        pix[tree] = (0.03, 0.08, 0.09)
+        pix[tree & (tier > 0.72)] = (0.50, 0.58, 0.74)  # snow lying on each tier
+    near_hill = 0.26 + 0.05 * np.sin(xx * 6.0 + 2.5) + 0.02 * np.sin(xx * 19.0)
+    snow = yy < near_hill
+    pix[snow] = (np.array([0.42, 0.50, 0.68])[None, :] * (0.75 + 0.25 * (yy / 0.3))[snow][:, None])
+    return np.clip(pix, 0, 1).astype(np.float32)
+
+
+NIGHT = painted("night_outside", night_picture(), rough=1.0)
+DEEP = 2.2
+sheet("Outside", [(WIN_L - 2.6, WALL + DEEP, WIN_B - 2.2), (WIN_R + 2.6, WALL + DEEP, WIN_B - 2.2),
+                  (WIN_R + 2.6, WALL + DEEP, WIN_T + 2.2), (WIN_L - 2.6, WALL + DEEP, WIN_T + 2.2)], NIGHT,
+      (1 / (WIN_R - WIN_L + 5.2), 1 / (WIN_T - WIN_B + 4.4)))
+for nm, c, s in (("JambL", (WIN_L - 0.1, WALL + 0.45, WMZ), (0.2, 0.9, WIN_T - WIN_B + 0.4)),
+                 ("JambR", (WIN_R + 0.1, WALL + 0.45, WMZ), (0.2, 0.9, WIN_T - WIN_B + 0.4)),
+                 ("JambT", (WMX, WALL + 0.45, WIN_T + 0.1), (WIN_R - WIN_L, 0.9, 0.2)),
+                 ("JambB", (WMX, WALL + 0.45, WIN_B - 0.1), (WIN_R - WIN_L, 0.9, 0.2))):
+    box("Window" + nm, c, s, "window_frame")
+ellipsoid("SnowOnSill", (WMX, WALL + 0.35, WIN_B + 0.02), ((WIN_R - WIN_L) / 2, 0.4, 0.22), "icing", subsurf=0)
+
+
+# ---------------------------------------------------------------- detail pictures for the game's materials
+# Grey pictures that repeat without a seam, written to textures/. The game lays them over every plain-coloured
+# thing (scripts/main.gd, DETAIL) so that nothing is flat: paper, felt, glaze, sugar, wood grain, and dots and
+# stripes for the wrapping paper. *_n are the same surfaces as bumps.
+def wrap_noise(rng, n, cells_y, cells_x):
+    g = rng.random((cells_y, cells_x))
+    iy = np.linspace(0, cells_y, n, endpoint=False)
+    ix = np.linspace(0, cells_x, n, endpoint=False)
+    y0 = np.floor(iy).astype(int)
+    x0 = np.floor(ix).astype(int)
+    fy = iy - y0
+    fx = ix - x0
+    fy = fy * fy * (3 - 2 * fy)
+    fx = fx * fx * (3 - 2 * fx)
+    y1 = (y0 + 1) % cells_y
+    x1 = (x0 + 1) % cells_x
+    top = g[y0][:, x0] * (1 - fx)[None, :] + g[y0][:, x1] * fx[None, :]
+    bot = g[y1][:, x0] * (1 - fx)[None, :] + g[y1][:, x1] * fx[None, :]
+    return top * (1 - fy)[:, None] + bot * fy[:, None]
+
+
+def save_grey(name, grey):
+    n = grey.shape[0]
+    img = bpy.data.images.new("detail_" + name, n, n)
+    rgba = np.ones((n, n, 4), dtype=np.float32)
+    rgba[:, :, :3] = np.clip(grey, 0, 1)[:, :, None]
+    img.pixels.foreach_set(rgba.ravel())
+    img.filepath_raw = os.path.join(ROOT, "textures", name + ".png")
+    img.file_format = "PNG"
+    img.save()
+
+
+def save_bumps(name, height, strength):
+    n = height.shape[0]
+    dx = (np.roll(height, -1, axis=1) - np.roll(height, 1, axis=1)) * strength
+    dy = (np.roll(height, -1, axis=0) - np.roll(height, 1, axis=0)) * strength
+    length = np.sqrt(dx * dx + dy * dy + 1.0)
+    img = bpy.data.images.new("detail_" + name, n, n)
+    img.colorspace_settings.name = "Non-Color"
+    rgba = np.ones((n, n, 4), dtype=np.float32)
+    rgba[:, :, 0] = -dx / length * 0.5 + 0.5
+    rgba[:, :, 1] = -dy / length * 0.5 + 0.5
+    rgba[:, :, 2] = 1.0 / length * 0.5 + 0.5
+    img.pixels.foreach_set(rgba.ravel())
+    img.filepath_raw = os.path.join(ROOT, "textures", name + ".png")
+    img.file_format = "PNG"
+    img.save()
+
+
+def detail_pictures():
+    os.makedirs(os.path.join(ROOT, "textures"), exist_ok=True)
+    rng = np.random.default_rng(21)
+    n = 256
+    yy, xx = np.mgrid[0:n, 0:n] / float(n)
+    blotch = wrap_noise(rng, n, 4, 4) * 0.5 + wrap_noise(rng, n, 9, 9) * 0.3 + wrap_noise(rng, n, 20, 20) * 0.2
+    grit = wrap_noise(rng, n, 128, 128)
+    linen = wrap_noise(rng, n, 128, 10) * 0.5 + wrap_noise(rng, n, 10, 128) * 0.5
+    fibres = wrap_noise(rng, n, 96, 20) * 0.35 + wrap_noise(rng, n, 20, 96) * 0.35 + wrap_noise(rng, n, 64, 64) * 0.3
+    streaks = wrap_noise(rng, n, 96, 3) * 0.6 + wrap_noise(rng, n, 160, 6) * 0.4
+    # painted paper: soft blotches of wash, a little grit, the weave of the sheet
+    paper_h = blotch * 0.5 + grit * 0.25 + linen * 0.25
+    save_grey("paper", 0.52 + 0.48 * (blotch * 0.55 + grit * 0.2 + linen * 0.25))
+    save_bumps("paper_n", paper_h, 2.2)
+    # felt: matted fibres
+    save_grey("felt", 0.48 + 0.52 * (fibres * 0.75 + blotch * 0.25))
+    save_bumps("felt_n", fibres, 4.0)
+    # glaze: nearly even, with pooling and a few kiln specks
+    glaze = 0.86 + 0.14 * blotch
+    glaze[rng.random((n, n)) > 0.996] = 0.6
+    save_grey("glaze", glaze)
+    # sugar: bright grains
+    sugar = 0.78 + 0.14 * grit + 0.08 * blotch
+    sugar[rng.random((n, n)) > 0.97] = 1.0
+    save_grey("sugar", sugar)
+    # wood grain: long streaks
+    save_grey("grain", 0.66 + 0.34 * (streaks * 0.8 + grit * 0.2))
+    # wrapping paper: dots in staggered rows, and slanting stripes, both on a paper ground
+    ground = 0.60 + 0.08 * blotch
+    dots = ground.copy()
+    for row in range(4):
+        for col in range(4):
+            cx = (col + 0.5 + 0.5 * (row % 2)) / 4.0
+            cy = (row + 0.5) / 4.0
+            ddx = np.abs(xx - cx)
+            ddx = np.minimum(ddx, 1 - ddx)
+            ddy = np.abs(yy - cy)
+            ddy = np.minimum(ddy, 1 - ddy)
+            dots[ddx * ddx + ddy * ddy < 0.055 ** 2] = 1.0
+    save_grey("dots", dots)
+    stripes = ground.copy()
+    stripes[((xx + yy) * 6.0) % 1.0 < 0.38] = 1.0
+    save_grey("stripes", stripes)
+    # how much of each window pane the frost covers (the game makes the panes see-through from this)
+    save_grey("frost_cover", frost_picture()[:, :, 3])
+
+
+detail_pictures()
+
 # ---------------------------------------------------------------- the garland and its lights, hung in swags
 HOOKS = [LEFT - 2.5, -7.9, -4.3, -0.7, WIN_L - 0.5, WIN_R + 0.5, 11.6, RIGHT + 2.5]
-HOOK_Z = [6.3, 6.3, 6.3, 6.3, 6.5, 6.5, 6.3, 6.3]
+HOOK_Z = [5.7, 5.7, 5.7, 5.7, 5.9, 5.9, 5.7, 5.7]
 bulb = 0
 GLOWS = ["glow_red", "glow_green", "glow_blue", "glow_yellow", "glow_pink"]
 LAMPS = []  # where the game puts a real light: (name, colour name, place)
@@ -541,5 +689,8 @@ os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)
 with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
     # Godot: x the same, z = -y
     json.dump({"left": LEFT + 0.4, "right": RIGHT - 0.4, "front": -(FRONT + 0.4), "back": -(WALL - 0.55),
-               "obstacles": [[round(x, 3), round(-y, 3), round(r, 3)] for (x, y, r) in OBSTACLES]}, f, indent=1)
+               "obstacles": [[round(x, 3), round(-y, 3), round(r, 3)] for (x, y, r) in OBSTACLES],
+               # the window, for the snow: its middle, its size, how far back the glass and the painted night are
+               "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,
+                          "night": -(WALL + DEEP)}}, f, indent=1)
 print("BUILT", len(SCENE.objects), "parts,", len(OBSTACLES), "obstacles")
