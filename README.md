@@ -51,8 +51,9 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   frost on the panes (`textures/frost_cover.png`).
 - **The garland** is GameCommon's pine tree (`scripts/pine_tree.gd`, `kit.sh install godot/pine-tree`): its needle fronds
   grown along each swag by `PineTree.garland` (added to the component for this), from the lines in
-  `data/kitchen.json`. The Blender build makes the rope, the berries and the light string, which loops loosely with
-  bulbs at uneven gaps, each leaning its own way.
+  `data/kitchen.json`. The Blender build makes the rope and the berries, and the line of a light string that loops loosely under it;
+  the wire and the C9 bulbs on that line are GameCommon's Christmas lights (`christmas_lights/`,
+  `kit.sh install godot/christmas-lights`), set up in `_build_stage`.
 - **The candy** is only in his hands in the mug, for a toss and on the way home (`_hold` in `scripts/main.gd`).
 - **Rogue strings and loops** are real hair-thin geometry (`fibre_*` materials), scattered over the felt parts by `shed()`
   at the end of `tools/build_mouse.py`: each call gives a part its number of loose strings and of pulled loops.

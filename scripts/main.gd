@@ -62,6 +62,7 @@ const WALK_SPEED := 2.3   ## counter units a second (the mug is 1 wide)
 const STEP := 0.3         ## the length of one of his steps
 const BODY := 0.3        ## how much room he needs round him
 const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in front of the mug
+const LIGHT_STRING_ENERGY := 0.07  ## each swag's one real light (the lights component multiplies it by the scale)
 
 ## How he is posed at one moment.
 class Pose:
@@ -362,6 +363,30 @@ func _build_stage() -> void:
 			(boughs.material_override as ShaderMaterial).set_shader_parameter("sway", 0.006)  # indoors: barely a stir
 			add_child(boughs)
 			swag += 1
+
+	# the garland's lights: GameCommon's Christmas lights, big C9 bulbs hung along each swag's loose string
+	for points: Array in _walk.get("light_strings", []):
+		var line: Array[Vector3] = []
+		for p: Array in points:
+			line.append(Vector3(p[0], p[1], p[2]))
+		var string := ChristmasLights.new()
+		string.kind = ChristmasLights.Kind.C9
+		string.size = 12.5  # this game's units to a real metre (1 unit is 8 cm)
+		string.bulb_size = 0.8
+		string.spacing = 0.075
+		string.unevenness = 0.55
+		string.palette = ChristmasLights.Palette.CLASSIC
+		string.pattern = ChristmasLights.Pattern.TWINKLE
+		string.speed = 0.5
+		string.wall_normal = Vector3(0.0, 0.0, 1.0)
+		string.light_offset = Vector3(0.0, -0.04, 0.035)
+		string.lights = 1
+		string.light_energy = LIGHT_STRING_ENERGY
+		string.light_range = 0.6
+		string.low_detail = phone
+		string.seed = 3 + get_child_count()
+		add_child(string)
+		string.hang(line)
 
 	# a snow storm blowing past outside the window, between the glass and the painted night
 	if _walk.has("window"):

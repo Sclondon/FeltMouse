@@ -488,14 +488,15 @@ detail_pictures()
 # ---------------------------------------------------------------- the garland and its lights, hung in swags
 # The rope of each swag is built here with its berries; its pine needles are GameCommon's pine tree fronds,
 # grown along the same line by the game (data/kitchen.json "garland" -> PineTree.garland in scripts/main.gd).
-# The lights are a string of their own, looped loosely under and over the garland: bulbs at uneven gaps, each
-# hanging its own way, in no set order of colours.
+# The lights are a string of their own, looped loosely under and over the garland: only its line is made here;
+# the wire and the bulbs are GameCommon's christmas-lights component (scripts/main.gd).
 HOOKS = [SIDE_L, -6.5, -3.6, -0.7, WIN_L - 0.5, WIN_R + 0.5, 11.9, SIDE_R]
 HOOK_Z = [5.7, 5.7, 5.7, 5.7, 5.9, 5.9, 5.7, 5.7]
 bulb = 0
 GLOWS = ["glow_red", "glow_green", "glow_blue", "glow_yellow", "glow_pink"]
 LAMPS = []  # where the game puts a real light: (name, place)
 GARLAND = []  # each swag's line, for the game to grow needles along
+LIGHT_STRINGS = []  # each swag's loose light string, for the game to hang bulbs along
 last_colour = ""
 for s in range(len(HOOKS) - 1):
     over_window = HOOKS[s] > WIN_L - 1 and HOOKS[s + 1] < WIN_R + 1
@@ -526,23 +527,8 @@ for s in range(len(HOOKS) - 1):
         dip = 0.12 + slack * (0.5 - 0.5 * math.cos(math.tau * loops * t + start)) * math.sin(math.pi * t) ** 0.5
         return on_rope + Vector((0, -0.22 - 0.1 * math.sin(7 * t + start), -dip))
 
-    tube("LightString%d" % s, [string_at(i / 60) for i in range(61)], 0.028, "wire", segs=5)
-    t = random.uniform(0.04, 0.12)
-    while t < 0.97:
-        at = string_at(t)
-        colour = random.choice([g for g in GLOWS if g != last_colour])
-        last_colour = colour
-        lean = math.radians(random.uniform(-38, 38))
-        size = random.uniform(0.82, 1.22)
-        down = Vector((math.sin(lean), -0.25 * random.random(), -math.cos(lean))).normalized()
-        turn = Matrix.Rotation(lean, 3, "Y")
-        tube("BulbCap%d" % bulb, [at, at + down * 0.2 * size], 0.085 * size, "wire", segs=6)
-        ellipsoid("Bulb%d" % bulb, at + down * 0.46 * size, (0.16 * size, 0.16 * size, 0.30 * size), colour, rot=turn,
-                  subsurf=0)
-        if bulb % 6 == 2:
-            LAMPS.append(("Lamp_%s_%d" % (colour, bulb), at + down * 0.46 + Vector((0, -0.4, 0))))
-        bulb += 1
-        t += random.uniform(0.10, 0.24)  # uneven gaps: some bulbs neighbours, some far apart
+    # (the wire and bulbs themselves are GameCommon's christmas-lights, hung along this line by the game)
+    LIGHT_STRINGS.append([string_at(i / 40) for i in range(41)])
 
 # ---------------------------------------------------------------- the things on the counter, left to right
 # a bowl of oranges
@@ -750,6 +736,7 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
                "boxes": [[round(x0, 3), round(-y1, 3), round(x1, 3), round(-y0, 3)] for (x0, y0, x1, y1) in BOXES],
                # each swag of the garland as points, for the pine needles the game grows along it
                "garland": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in GARLAND],
+               "light_strings": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in LIGHT_STRINGS],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are
                "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,
                           "night": -(WALL + DEEP)}}, f, indent=1)
