@@ -323,6 +323,18 @@ for i in range(141):
 tube("WaferSwirl", helix, 0.017, "felt_candy_white", segs=8)
 ellipsoid("WaferTop", W1, (0.036, 0.036, 0.02), "felt_candy_white", subsurf=0)
 
+# ---------------------------------------------------------------- legs and a tail (not in the photo: designed in
+# the toy's own way of making things: wrapped-wire limbs with pink felt ends, like his arms and hands)
+HIP_Z = 0.70
+for side, sx in (("L", -1), ("R", 1)):
+    leg = spline([(0.09 * sx, 0.04, HIP_Z + 0.04), (0.115 * sx, -0.015, 0.56), (0.115 * sx, 0.0, 0.425)])
+    tube("Leg" + side, leg, 0.021, "felt_white")
+    ellipsoid("Foot" + side, (0.12 * sx, -0.06, 0.408), (0.052, 0.095, 0.028), "felt_pink",
+              rot=Matrix.Rotation(math.radians(-12 * sx), 3, "Z"))
+TAIL_BASE = Vector((0.0, 0.20, 0.76))
+tube("Tail", spline([TAIL_BASE, (0.04, 0.36, 0.71), (0.15, 0.47, 0.74), (0.27, 0.46, 0.85), (0.28, 0.37, 0.97),
+                     (0.20, 0.33, 1.05), (0.15, 0.37, 1.10)], per=6), 0.013, "felt_pink", segs=8)
+
 # ---------------------------------------------------------------- rogue strings and loops
 # Real felt sheds: long loose fibres that curl away from it, and little loops pulled out of the surface.
 # Each is a thin three-sided tube rooted at a random point of a felt part; one mesh of them per colour.
@@ -430,9 +442,43 @@ shed("FibresMug", ["Mug", "MugHandle"], "fibre_brown", 300, 110, lambda p, n: ab
 shed("FibresCream", ["CreamLower", "CreamUpper", "MugFoot"], "fibre_white", 110, 90,
      lambda p, n: (p.z < 0.1 or n.z > -0.2) and (p.z < 0.1 or flat_r(p) > 0.24))
 shed("FibresMouse", ["Body", "Head", "EarL", "EarR", "ArmL", "ArmR"], "fibre_white", 120, 60,
-     lambda p, n: p.z > 0.84 and not (p.y < -0.12 and 1.1 < p.z < 1.36 and abs(p.x) < 0.14))
+     lambda p, n: p.z > 0.68 and not (p.y < -0.12 and 1.1 < p.z < 1.36 and abs(p.x) < 0.14))
 shed("FibresScarf", ["Scarf"], "fibre_red", 45, 30)
 shed("FibresWafer", ["Wafer"], "fibre_brown", 25, 10, lambda p, n: p.z > 0.85)
+
+# ---------------------------------------------------------------- the mouse as one thing to move
+# Everything that is him hangs from MouseRoot; each leg and the tail hang from a pivot at its joint,
+# so the game can lift him out of the cocoa, kick his legs and wag his tail (scripts/main.gd).
+
+
+def pivot(name, at, parent=None):
+    e = bpy.data.objects.new(name, None)
+    e.empty_display_size = 0.05
+    SCENE.collection.objects.link(e)
+    e.matrix_world = Matrix.Translation(at)
+    if parent:
+        e.parent = parent
+    return e
+
+
+def hang(names, parent, at):
+    for nm in names:
+        o = bpy.data.objects[nm]
+        world = o.matrix_world.copy()
+        o.parent = parent
+        o.matrix_parent_inverse = Matrix.Translation(at).inverted()
+        o.matrix_world = world
+
+
+ORIGIN = Vector((0, 0, 0))
+root = pivot("MouseRoot", ORIGIN)
+hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith(
+    ("Body", "Head", "Nose", "Eye", "Ear", "Whisker", "Scarf", "Arm", "Hand", "Candy", "FibresMouse", "FibresScarf"))],
+    root, ORIGIN)
+for side, sx in (("L", -1), ("R", 1)):
+    at = Vector((0.09 * sx, 0.04, HIP_Z + 0.04))
+    hang(["Leg" + side, "Foot" + side], pivot("LegPivot" + side, at, root), at)
+hang(["Tail"], pivot("TailPivot", TAIL_BASE, root), TAIL_BASE)
 
 # ---------------------------------------------------------------- save and export
 for o in SCENE.objects:

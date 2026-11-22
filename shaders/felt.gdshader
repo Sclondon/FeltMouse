@@ -14,7 +14,26 @@ uniform float stray = 0.03;        // share of long loose fibres
 uniform float edge_glow = 0.18;    // the pale rim felt shows against the light
 uniform float mottle = 0.06;
 
+
+// The cocoa's foam moves (all zero on every other part). Heights in model units, the mug is 1 wide.
+uniform float foam_clock = 0.0;   // seconds, drives the travelling waves
+uniform float foam_stir = 0.0;    // 0 still .. 1 bubbling hard
+uniform float foam_swell = 0.0;   // the middle heaves up (+) or is pressed down (-)
+uniform float foam_ring = 0.0;    // height of the splash ring
+uniform float foam_ring_at = 0.0; // how far out from the middle the splash ring is
+
 varying vec3 at;
+
+float foam_lift(vec3 v) {
+	float out_r = length(v.xz);
+	float hold = smoothstep(0.5, 0.64, v.y); // only the foam on top, never the white foot of the mug
+	float lift = foam_stir * (0.014 * sin(out_r * 26.0 - foam_clock * 5.0)
+		+ 0.011 * sin(v.x * 17.0 + foam_clock * 3.1) * sin(v.z * 19.0 - foam_clock * 2.7));
+	lift += foam_swell * exp(-out_r * out_r / 0.045);
+	float gap = (out_r - foam_ring_at) / 0.07;
+	lift += foam_ring * exp(-gap * gap);
+	return lift * hold;
+}
 
 float hash(vec3 p) {
 	p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -24,6 +43,7 @@ float hash(vec3 p) {
 
 void vertex() {
 	at = VERTEX;
+	VERTEX.y += foam_lift(VERTEX);
 	VERTEX += NORMAL * fuzz_length * layer;
 }
 
