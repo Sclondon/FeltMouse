@@ -269,8 +269,12 @@ for side, sx in (("L", -1), ("R", 1)):
     ellipsoid("EarInner" + side, ear_c + turn @ Vector((0, -0.018, -0.005)), (0.092, 0.012, 0.092), "felt_pink",
               rot=turn)
 
-# one stiff whisker pushed through the snout, as on the real one
-tube("Whisker", [(-0.29, -0.295, 1.235), (0.29, -0.295, 1.170)], 0.0055, "bead_black", segs=6)
+# two stiff whiskers a side, rooted in the snout behind the nose and fanned apart
+for side, sx in (("L", -1), ("R", 1)):
+    for k, (rise, back) in enumerate(((0.050, 0.02), (-0.045, 0.05))):
+        lean = 0.012 * sx  # the real one sits a little askew
+        tube("Whisker%s%d" % (side, k), [(0.03 * sx, -0.295, 1.205 + 0.25 * rise),
+                                         (0.29 * sx, -0.295 + back, 1.205 + rise - lean)], 0.0055, "bead_black", segs=6)
 
 # the scarf
 # his collar: a flat band of red felt round the neck (a ring, not a fat tube), a little wider at the bottom
@@ -393,8 +397,8 @@ def loopy(p, n):
     """A pulled loop: both feet in the felt, a round eye standing off it, leaning a little."""
     t = Matrix.Rotation(random.uniform(0, math.tau), 3, n) @ n.orthogonal().normalized()
     side = n.cross(t)
-    r = random.uniform(0.010, 0.032)
-    tall = random.uniform(1.0, 1.7)
+    r = 0.004 + 0.017 * random.random() ** 1.7  # mostly small, a few bigger, no two alike
+    tall = random.uniform(0.8, 1.9)
     lean = random.uniform(-0.6, 0.6)
     pts = []
     for i in range(15):
