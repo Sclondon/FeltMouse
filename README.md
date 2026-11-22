@@ -2,6 +2,9 @@
 
 A little felt mouse sitting in a mug of cocoa, recreated from a photo (`art_src/reference_photo.jpg`), on a turntable.
 Godot 4.7, GL Compatibility, portrait. Placeholder name.
+On the arcade as the secret cart "Felt Mouse" (type MOUSE into WaysideOS), no scores; web build in `build/`, served from
+github.com/Sclondon/FeltMouse. After a change: export (`--export-release "Web" build/index.html`), push, and bump the
+cart's `?v=` in the site's games.tsx. The reference photo is kept out of the public repo.
 
 - **What he does** (a loop of about twelve seconds): hides under the cocoa foam, pops out of it, lands standing on it,
   paces across the foam and back, lifts his candy over his head, tosses it up (it turns over once) and catches it,
