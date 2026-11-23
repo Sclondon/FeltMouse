@@ -90,7 +90,7 @@ class Pose:
 	var ring_at := 0.0  # and how far out it has run
 
 var yaw := 0.2
-var pitch := 0.36
+var pitch := 0.3
 var distance := 13.0
 var playing := true  ## false: a test steps the game itself (step)
 var act := Act.POP
@@ -487,7 +487,7 @@ func _build_stage() -> void:
 		add_child(snow)
 
 	_camera = Camera3D.new()
-	_camera.fov = 36.0
+	_camera.fov = 41.0
 	add_child(_camera)
 
 
@@ -548,7 +548,7 @@ func step(delta: float) -> void:
 	var holding := act != Act.FREE and act != Act.HOP_DOWN
 	_hold = move_toward(_hold, 1.0 if holding else 0.0, delta * 3.5)
 	_apply(p)
-	_focus = _focus.lerp(_mouse.position + Vector3(0.0, 2.1, 0.0), minf(delta * 5.0, 1.0) if delta > 0.0 else 1.0)
+	_focus = _focus.lerp(_mouse.position + Vector3(0.0, 2.9, 0.0), minf(delta * 5.0, 1.0) if delta > 0.0 else 1.0)
 	_place_camera()
 	_hud.queue_redraw()
 

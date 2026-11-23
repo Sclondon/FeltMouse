@@ -275,6 +275,9 @@ while x < SIDE_R - 0.5:
     x += w
     door += 1
 # upper cabinets either side of the window
+# ("The kitchen needs the upper cabinets the garland should be on", the user: they hang low enough to be in view, and
+# the garland runs along the front of their bottom edge)
+CAB_B, CAB_DEEP = 5.5, 2.6
 WIN_L, WIN_R, WIN_B, WIN_T = 3.1, 8.0, 2.3, 7.3
 # the tiled wall, in four pieces round the window's opening (one picture across them all)
 for nm, (x0, x1, z0, z1) in (("WallLeft", (LEFT - 3, WIN_L, 0, 7.6)), ("WallRight", (WIN_R, RIGHT + 3, 0, 7.6)),
@@ -282,12 +285,12 @@ for nm, (x0, x1, z0, z1) in (("WallLeft", (LEFT - 3, WIN_L, 0, 7.6)), ("WallRigh
     sheet(nm, [(x0, WALL, z0), (x1, WALL, z0), (x1, WALL, z1), (x0, WALL, z1)], TILE, (1 / 1.9, 1 / 1.9),
           origin=(LEFT - 3, WALL, 0))
 for nm, x0, x1 in (("UpperLeft", SIDE_L, WIN_L - 0.9), ("UpperRight", WIN_R + 0.9, SIDE_R)):
-    box(nm, ((x0 + x1) / 2, WALL - 1.3, 7.6 + 3.0), (x1 - x0, 2.6, 6.0), "cabinet")
+    box(nm, ((x0 + x1) / 2, WALL - CAB_DEEP / 2, CAB_B + 3.2), (x1 - x0, CAB_DEEP, 6.4), "cabinet")
     n = max(1, round((x1 - x0) / 3.4))
     for i in range(n):
         cx = x0 + (i + 0.5) * (x1 - x0) / n
-        box("%sDoor%d" % (nm, i), (cx, WALL - 2.64, 7.6 + 3.1), ((x1 - x0) / n - 0.25, 0.1, 5.4), "cabinet_dark")
-        box("%sPull%d" % (nm, i), (cx + (x1 - x0) / n / 2 - 0.5, WALL - 2.72, 8.4), (0.14, 0.1, 1.0), "handle")
+        box("%sDoor%d" % (nm, i), (cx, WALL - CAB_DEEP - 0.04, CAB_B + 3.2), ((x1 - x0) / n - 0.25, 0.1, 5.9), "cabinet_dark")
+        box("%sPull%d" % (nm, i), (cx + (x1 - x0) / n / 2 - 0.5, WALL - CAB_DEEP - 0.12, CAB_B + 1.0), (0.14, 0.1, 1.0), "handle")
 box("WallAboveWindow", ((WIN_L + WIN_R) / 2, WALL + 0.2, 7.6 + 3.0), (WIN_R - WIN_L + 1.8, 0.4, 6.0), "window_frame")
 # the window: a frosty night behind a white frame with one upright and one cross bar
 WMX, WMZ = (WIN_L + WIN_R) / 2, (WIN_B + WIN_T) / 2
@@ -525,8 +528,9 @@ detail_pictures()
 # grown along the same line by the game (data/kitchen.json "garland" -> PineTree.garland in scripts/main.gd).
 # The lights are a string of their own, looped loosely under and over the garland: only its line is made here;
 # the wire and the bulbs are GameCommon's christmas-lights component (scripts/main.gd).
-HOOKS = [SIDE_L, -6.5, -3.6, -0.7, WIN_L - 0.5, WIN_R + 0.5, 11.9, SIDE_R]
-HOOK_Z = [5.7, 5.7, 5.7, 5.7, 5.9, 5.9, 5.7, 5.7]
+HOOKS = [SIDE_L, -6.5, -3.6, -0.7, WIN_L - 0.9, WIN_R + 0.9, 12.1, SIDE_R]
+HOOK_Z = [CAB_B - 0.05] * 8
+GARLAND_Y = WALL - CAB_DEEP - 0.14  # just proud of the cabinets' fronts
 bulb = 0
 GLOWS = ["glow_red", "glow_green", "glow_blue", "glow_yellow", "glow_pink"]
 LAMPS = []  # where the game puts a real light: (name, place)
@@ -538,11 +542,11 @@ for s in range(len(HOOKS) - 1):
     if over_window:
         continue  # the garland stops either side of the window
     x0, x1 = HOOKS[s], HOOKS[s + 1]
-    sag = 0.16 * (x1 - x0)
+    sag = 0.13 * (x1 - x0)
     line = []
     for i in range(25):
         t = i / 24
-        line.append(Vector((x0 + (x1 - x0) * t, WALL - 0.34, HOOK_Z[s] + (HOOK_Z[s + 1] - HOOK_Z[s]) * t
+        line.append(Vector((x0 + (x1 - x0) * t, GARLAND_Y, HOOK_Z[s] + (HOOK_Z[s + 1] - HOOK_Z[s]) * t
                             - sag * 4 * t * (1 - t))))
     GARLAND.append(line)
     tube("GarlandRope%d" % s, line, 0.07, "pine_dark", segs=6)
