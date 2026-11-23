@@ -138,7 +138,7 @@ ARMS = {
 HANDS = {"L": (-0.20, -0.585, 0.675), "R": (0.10, -0.585, 0.672)}
 # the arms were a little too long (the user): everything from the shoulders out is drawn in toward them
 SHOULDERS = Vector((0, 0.02, 1.0))
-ARM_LENGTH = 0.85
+ARM_LENGTH = 0.6  # (0.85 was "still too long", the user)
 
 
 def drawn_in(p):

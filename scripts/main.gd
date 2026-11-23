@@ -56,10 +56,11 @@ const UNDER := -0.04      ## under the foam, shrunk to SMALL so that he fits ins
 const SMALL := 0.45
 const ARMS_UP := 1.6      ## how far the arms swing to hold the candy over his head, radians
 const TOSS_HEIGHT := 0.5  ## how high the candy flies above his raised hands
-const ARMS_STRETCH := 0.45  ## how much longer the arms get as they straighten upward
-const ARMS_HANG := 0.75     ## how far down and back the arms hang when his hands are empty, radians
+const ARMS_STRETCH := 1.0  ## how much longer the arms get as they straighten upward
+const ARMS_HANG := 0.5     ## how far down and back the arms hang when his hands are empty, radians
 const WALK_SPEED := 2.7   ## counter units a second (the mug is 1 wide)
-const STEP := 0.36         ## the length of one of his steps
+const STEPS_SLOW := 1.9    ## steps a second creeping along
+const STEPS_FAST := 3.1    ## steps a second flat out
 const BODY := 0.3        ## how much room he needs round him
 const JUMP_SPEED := 6.6    ## how fast he leaves the ground: with GRAVITY, a jump about 1.35 high (he is 1.2 tall)
 const GRAVITY := 16.0
@@ -85,6 +86,10 @@ class Pose:
 	var tilt := 0.0     # leaning forward into a walk
 	var bounce := 0.0   # how much his tail bobs with his steps
 	var fling := 0.0    # empty arms thrown up (-) from where they hang
+	var lift_left := 0.0   # each leg picked up as it comes forward
+	var lift_right := 0.0
+	var arm_swing := 0.0   # empty arms swinging, left forward (+)
+	var tail_wag := 0.0    # the tail swung aside by his steps
 	var raise := 0.0    # arms: 0 down holding the candy in front, 1 up over his head
 	var flight := -1.0  # the candy in the air: 0 thrown .. 1 caught (-1 it is in his hands)
 	var seen := true
@@ -132,6 +137,9 @@ var _on_ground := true
 var _rise := 0.0    # how fast he is going up (jumping) or down
 var _trail := 0.0   # seconds of dust still to leave in the air behind a jump
 var _landed := 0.0  # 1 as he lands, fading: the squash
+var _lean := 0.0    # leaning into a turn
+var _face_was := 0.0
+var _leg_rest: Array[Vector3] = []
 var _dust: CloudPuffs
 var _tree: Node3D
 var _house: Node3D
@@ -150,6 +158,7 @@ func _ready() -> void:
 	_legs = [model.find_child("LegPivotL", true, false), model.find_child("LegPivotR", true, false)]
 	_tail = model.find_child("TailPivot", true, false)
 	_tail_rest = _tail.basis
+	_leg_rest = [_legs[0].position, _legs[1].position]
 	_arms = [model.find_child("ArmPivotL", true, false), model.find_child("ArmPivotR", true, false)]
 	_arms_rest = _arms[0].position
 	_candy = model.find_child("CandyPivot", true, false)
@@ -677,17 +686,19 @@ func _walk_about(p: Pose, delta: float) -> void:
 		_spot.x += want.x * WALK_SPEED * delta
 		_spot.z += want.y * WALK_SPEED * delta
 		_keep_on_counter()
-		_face = lerp_angle(_face, atan2(want.x, want.y), minf(delta * 10.0, 1.0))
-		_moving = minf(_moving + delta * 8.0, 1.0)
+		_face = lerp_angle(_face, atan2(want.x, want.y), minf(delta * 7.0, 1.0))
+		_moving = minf(_moving + delta * 4.5, 1.0)
 		if _on_ground:
 			var step_was := int(floor(_phase / PI))
-			_phase += speed * WALK_SPEED * delta * PI / STEP
+			# (his steps keep their own time: a few a second, a little quicker flat out, however fast he covers ground:
+			# "the animation is way too fast when running", the user)
+			_phase += PI * lerpf(STEPS_SLOW, STEPS_FAST, speed) * delta
 			if int(floor(_phase / PI)) != step_was and _moving > 0.6:
 				# a foot comes down: a few little puffs round it, kicked back a bit
 				var side := Vector3(cos(_face), 0.0, -sin(_face)) * (0.12 if step_was % 2 == 0 else -0.12)
 				_dust.ring(_spot + side - Vector3(want.x, 0.0, want.y) * 0.1, 3, 0.55, 0.13)
 	else:
-		_moving = maxf(_moving - delta * 6.0, 0.0)
+		_moving = maxf(_moving - delta * 3.5, 0.0)
 
 	# up and down: he stands on the counter or on whatever low thing is under him, and falls off its edge
 	var floor_y := _floor_at(_spot.x, _spot.z)
@@ -715,16 +726,27 @@ func _walk_about(p: Pose, delta: float) -> void:
 				_spot = Vector3(0.0, FOAM_TOP, 0.0)
 	_landed = maxf(_landed - delta * 4.5, 0.0)
 
-	# how he looks doing it: every step a little hop, stretched at its top and squashed as the foot comes down,
-	# leaning into it, legs flung well apart; in the air, stretched with his legs trailing and arms thrown up
-	var hop := absf(sin(_phase)) * _moving
-	p.face = _face
-	p.stride = 0.62 * sin(_phase) * _moving
-	p.roll = 0.11 * sin(_phase) * _moving
-	p.tilt = 0.17 * _moving
-	p.squash = 1.0 + 0.09 * (hop * 2.0 - 1.0) * _moving
+	# How he looks doing it. Nothing moves on the same beat as anything else, which is what keeps it from looking like
+	# clockwork ("his walking animation way too robotic", the user): the body's bob is a smooth wave and its squash
+	# trails it, his hips sway after his feet, his shoulders turn against them, his arms swing late and his tail later
+	# still, each leg lifts as it comes forward and swings forward quicker than it pushes back, and no two steps are
+	# quite the same length. In the air: stretched, legs trailing, arms thrown up.
+	var beat := _phase + 0.3 * sin(_phase)
+	var step_no := floorf(_phase / PI)
+	var vary := 0.88 + 0.24 * fposmod(sin(step_no * 12.9898) * 43758.5453, 1.0)
+	_lean = lerpf(_lean, clampf(angle_difference(_face_was, _face) / maxf(delta, 0.001) * 0.035, -0.22, 0.22), minf(delta * 6.0, 1.0))
+	_face_was = _face
+	p.face = _face + 0.10 * sin(_phase - 0.3) * _moving
+	p.stride = 0.5 * sin(beat) * _moving * vary
+	p.lift_left = 0.07 * maxf(cos(beat), 0.0) * _moving
+	p.lift_right = 0.07 * maxf(-cos(beat), 0.0) * _moving
+	p.roll = 0.07 * sin(_phase - 0.6) * _moving - _lean
+	p.tilt = (0.13 + 0.035 * sin(_phase * 2.0 + 0.5)) * _moving
+	p.squash = 1.0 + 0.05 * sin(_phase * 2.0 - 1.0) * _moving
+	p.arm_swing = 0.42 * sin(_phase - 0.7) * _moving
+	p.tail_wag = 0.35 * sin(_phase - 1.4) * _moving
 	p.bounce = 0.6 * _moving
-	var lift := 0.12 * hop + 0.008 * sin(_time * 3.0) * (1.0 - _moving)
+	var lift := 0.075 * (0.5 - 0.5 * cos(_phase * 2.0)) * _moving + 0.008 * sin(_time * 3.0) * (1.0 - _moving)
 	if not _on_ground:
 		var up := clampf(_rise / JUMP_SPEED, -1.0, 1.0)
 		p.squash = 1.0 + 0.16 * absf(up)
@@ -867,7 +889,9 @@ func _apply(p: Pose) -> void:
 	_mouse.basis = (Basis(Vector3.UP, p.face) * Basis(Vector3.RIGHT, p.tilt) * Basis(Vector3.BACK, p.roll)).scaled_local(Vector3(wide, p.size * p.squash, wide))
 	_legs[0].rotation = Vector3(p.kick - p.stride, 0.0, 0.0)
 	_legs[1].rotation = Vector3(p.kick + p.stride, 0.0, 0.0)
-	_tail.basis = Basis(Vector3.UP, 0.3 * sin(_time * 6.0)) * Basis(Vector3.RIGHT, -0.5 * p.kick + 0.35 * p.bounce * sin(_phase * 2.0)) * _tail_rest
+	_legs[0].position = _leg_rest[0] + Vector3.UP * p.lift_left
+	_legs[1].position = _leg_rest[1] + Vector3.UP * p.lift_right
+	_tail.basis = Basis(Vector3.UP, 0.2 * sin(_time * 2.3) + 0.07 * sin(_time * 5.1) + p.tail_wag) * Basis(Vector3.RIGHT, -0.5 * p.kick + 0.35 * p.bounce * sin(_phase * 2.0)) * _tail_rest
 
 	# his arms swing up as one from the shoulders, and the candy goes with his hands until it is thrown
 	# (the bowed wire straightens as it goes up, and his shoulders shrug: that is what gets the candy clear of his nose
@@ -880,7 +904,7 @@ func _apply(p: Pose) -> void:
 	var ease := smoothstep(0.0, 1.0, _hold)
 	for i in 2:
 		# without the candy each arm hangs lower and swings against the leg on its side
-		var hang := ARMS_HANG + p.fling + (0.9 if i == 0 else -0.9) * p.stride
+		var hang := ARMS_HANG + p.fling + (1.0 if i == 0 else -1.0) * p.arm_swing
 		_arms[i].position = _arms_rest + shrug
 		_arms[i].basis = Basis(Vector3.RIGHT, lerpf(hang, lift_angle, ease)) * stretch
 	var held := _arms_rest + shrug + swing * stretch * (_candy_rest - _arms_rest)
