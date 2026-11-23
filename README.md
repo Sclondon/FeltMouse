@@ -57,7 +57,7 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
 - **The sink** under the window is a basin let into the counter (the counter top is in pieces round it) with a tap; he
   cannot walk into it (`boxes` in `data/kitchen.json`). The counter ends at tiled side walls, which are one-sided so
   the camera can swing outside them. The props that stood under the window in the concept moved to make room.
-- **The look** is a cosy night with the overhead light off: the room is nearly dark and lit by the bulbs, the candle and a faint warm glow, and the bulbs and candle throw the shadows
+- **The look** is a cosy night with the overhead light off: every light in the room sits on a bulb string, the tree's string or a candle flame (three candles: the holly pillar, a taper at the left end, a tea light on the sill), with almost no fill, and on computers they throw the shadows
   (`_build_stage` in `scripts/main.gd`). Nothing is left flat: `DETAIL` there lays a grey picture (`textures/*.png`:
   paper, felt, glaze, sugar, grain, dots, stripes, made by the kitchen build script) over every plain-coloured thing.
   The window is a real opening onto a painted snowy night, with snow blown between the glass and the painting and

@@ -68,12 +68,18 @@ const CLIMB := 1.3         ## the tallest thing he can land on
 const STEP_UP := 0.25      ## low enough to walk up onto without a jump (the cookie plate)
 const MUG_REACH := 2.3     ## how near his mug the interact button means "go home"
 const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in front of the mug
-const LIGHT_STRING_ENERGY := 0.08  ## each swag's one real light (the lights component multiplies it by the scale)
+const LIGHT_STRING_ENERGY := 0.03  ## each swag's one real light (the lights component multiplies it by the scale)
 const TREE_HEIGHT := 0.29  ## the little tree's height in real metres (it must clear the cabinets above it)
 const HOUSE_SIZE := 10.5  ## the gingerbread house: this game's units to one of its metres (12.5 is life size; a little under, to fit by the mug)
 const NUTCRACKER_SIZE := 7.5  ## the nutcracker: this game's units to one of his metres (12.5 is life size, 47 cm; he must fit under the cabinets)
 const NUT_REACH := 2.2       ## how near the nutcracker the interact button means "crack the walnut"
 const SNIFF_TIME := 1.8     ## how long a sniff of the air lasts, seconds
+const CANDLE_ENERGY := 0.36  ## how strong a candle's light is (the candle component's own measure; its default is 0.4)
+## The candles besides the holly pillar: kind, wax, where its foot is, size against life, light against CANDLE_ENERGY.
+var MORE_CANDLES := [
+	[Candle.Kind.TAPER, Candle.Wax.RED, Vector3(-8.5, 0.0, 1.7), 0.75, 1.0],
+	[Candle.Kind.TEALIGHT, Candle.Wax.WHITE, Vector3(6.9, 2.32, -3.42), 0.8, 0.55],
+]
 
 ## How he is posed at one moment.
 class Pose:
@@ -355,7 +361,7 @@ func _build_stage() -> void:
 	env.background_color = Color(0.012, 0.012, 0.025)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.50, 0.55, 0.85)
-	env.ambient_light_energy = 0.11
+	env.ambient_light_energy = 0.045
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	if not phone:
 		env.glow_enabled = true
@@ -399,15 +405,8 @@ func _build_stage() -> void:
 		light.omni_attenuation = 1.4
 		light.position = mark.position
 		kitchen.add_child(light)
-	# the low warm glow of the room behind the player, along the counter
-	for x: float in [-5.0, 3.0, 10.5]:
-		var glow := OmniLight3D.new()
-		glow.light_color = Color(1.0, 0.66, 0.36)
-		glow.light_energy = 0.2
-		glow.omni_range = 10.0
-		glow.omni_attenuation = 1.2
-		glow.position = Vector3(x, 3.4, 2.4)
-		add_child(glow)
+	# (No room glow: "The light should be coming from the christmas light and candles", the user. Every light in the
+	# room now sits on a bulb string, the tree's string or a candle flame; the gingerbread windows glow painted.)
 
 	# the garland's needles: GameCommon's pine tree fronds grown along each swag of its rope
 	if _walk.has("garland"):
@@ -445,9 +444,9 @@ func _build_stage() -> void:
 		string.speed = 0.5
 		string.wall_normal = Vector3(0.0, 0.0, 1.0)
 		string.light_offset = Vector3(0.0, -0.04, 0.035)
-		string.lights = 1
+		string.lights = 1 if phone else 2
 		string.light_energy = LIGHT_STRING_ENERGY
-		string.light_range = 0.6
+		string.light_range = 0.5
 		string.low_detail = phone
 		string.seed = 3 + get_child_count()
 		add_child(string)
@@ -463,8 +462,21 @@ func _build_stage() -> void:
 		candle.burnt = 0.25
 		candle.low_detail = phone
 		candle.light_shadows = not phone
+		candle.light_energy = CANDLE_ENERGY
 		candle.position = Vector3(at[0], at[1], at[2])
 		add_child(candle)
+	# two more candles, so the ends of the room have a flame of their own: a taper in a brass chamberstick at the left
+	# end of the counter, and a tea light on the window sill
+	for more: Array in MORE_CANDLES:
+		var flame := Candle.make(more[0], more[1], 12.5 * float(more[3]))
+		flame.burnt = 0.2
+		flame.low_detail = phone
+		flame.light_shadows = not phone and more[0] == Candle.Kind.TAPER
+		flame.light_energy = CANDLE_ENERGY * float(more[4])
+		flame.position = more[2]
+		add_child(flame)
+		if (more[2] as Vector3).y < 0.1:
+			(_walk["obstacles"] as Array).append([more[2].x, more[2].z, 0.55, 9.0])
 
 	# the presents: a small heap from GameCommon's presents, smaller than life so they sit by the nutcracker like toys;
 	# each one on the counter becomes a thing he walks round or jumps onto
