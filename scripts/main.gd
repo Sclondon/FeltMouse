@@ -69,6 +69,7 @@ const MUG_REACH := 2.3     ## how near his mug the interact button means "go hom
 const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in front of the mug
 const LIGHT_STRING_ENERGY := 0.07  ## each swag's one real light (the lights component multiplies it by the scale)
 const TREE_HEIGHT := 0.29  ## the little tree's height in real metres (it must clear the cabinets above it)
+const HOUSE_SIZE := 10.5  ## the gingerbread house: this game's units to one of its metres (12.5 is life size; a little under, to fit by the mug)
 
 ## How he is posed at one moment.
 class Pose:
@@ -131,6 +132,7 @@ var _trail := 0.0   # seconds of dust still to leave in the air behind a jump
 var _landed := 0.0  # 1 as he lands, fading: the squash
 var _dust: CloudPuffs
 var _tree: Node3D
+var _house: Node3D
 
 
 func _ready() -> void:
@@ -460,6 +462,19 @@ func _build_stage() -> void:
 		(_walk["obstacles"] as Array).append([foot[0], foot[2], float(pot["radius"]), 9.0])
 		_tree = tree
 
+	# the gingerbread house: GameCommon's cottage, its windows glowing; he can stand in its doorway
+	if _walk.has("house"):
+		var plot: Array = _walk["house"]
+		var house := GingerbreadHouse.new()
+		house.kind = GingerbreadHouse.Kind.COTTAGE
+		house.size = HOUSE_SIZE
+		house.seed = 7
+		house.low_detail = phone
+		house.position = Vector3(plot[0], plot[1], plot[2])
+		house.rotation.y = deg_to_rad(plot[3])
+		add_child(house)
+		_house = house
+
 	# a snow storm blowing past outside the window, between the glass and the painted night
 	if _walk.has("window"):
 		var w: Dictionary = _walk["window"]
@@ -722,6 +737,11 @@ func _keep_on_counter() -> void:
 				away = away.normalized() * room if away.length() > 0.001 else Vector2(0.0, room)
 				_spot.x = o[0] + away.x
 				_spot.z = o[1] + away.y
+		if _house and _spot.y < 2.0:
+			# the gingerbread house's walls (its doorway is left open)
+			var clear: Vector3 = _house.push_out_walls(_spot, BODY * 0.7)
+			_spot.x = clear.x
+			_spot.z = clear.z
 		for b: Array in _walk.get("boxes", []):
 			# a rectangle (the sink): out by the nearest side
 			var x0: float = b[0] - BODY

@@ -610,45 +610,9 @@ blocks(0.68, 0, 0.2, 0.5)
 # the game (scripts/main.gd), which keeps him out of its pot
 TREE_AT = (1.4, 2.4)
 
-# a gingerbread house
-X, Y, TURN = 2.3, 0.4, -12.0
-GM = Matrix.Translation((X, Y, 0)) @ Matrix.Rotation(math.radians(TURN), 4, "Z")
-HW, HD, HH, ROOF = 1.0, 0.8, 1.15, 0.95
-
-
-def house(name, o):
-    o.data.transform(GM @ o.matrix_world)  # (a prism keeps its placing on the object: fold it into the mesh)
-    o.matrix_world = Matrix.Identity(4)
-    return o
-
-
-house("a", box("GingerWalls", (0, 0, HH / 2), (HW * 2, HD * 2, HH), "gingerbread"))
-gable = [(-HW, 0), (HW, 0), (0, ROOF)]
-house("b", prism("GingerGable", gable, -HD, HD, "gingerbread",
-                 Matrix.Translation((0, 0, HH)) @ Matrix.Rotation(math.radians(90), 4, "X")))
-slope = math.atan2(ROOF, HW)
-for sx in (-1, 1):
-    m = (Matrix.Translation((sx * HW * 0.5, 0, HH + ROOF * 0.5 + 0.06)) @ Matrix.Rotation(sx * slope, 4, "Y"))
-    o = prism("GingerRoof%d" % sx, [(-0.8, -HD - 0.18), (0.8, -HD - 0.18), (0.8, HD + 0.18), (-0.8, HD + 0.18)],
-              0.0, 0.12, "icing", m)
-    house("c", o)
-    for r in range(3):  # gumdrops in rows down each slope
-        for cidx in range(3):
-            p = m @ Vector((-0.5 + r * 0.5, -0.55 + cidx * 0.55, 0.12))
-            house("d", ellipsoid("Gumdrop%d_%d_%d" % (sx, r, cidx), p, (0.11, 0.11, 0.1),
-                                 ("gumdrop_red", "gumdrop_green", "gumdrop_yellow")[(r + cidx) % 3], subsurf=0))
-house("e", tube("GingerRidge", [(0, -HD - 0.2, HH + ROOF + 0.1), (0, HD + 0.2, HH + ROOF + 0.1)], 0.1, "icing", segs=8))
-house("f", box("GingerDoor", (0, -HD - 0.02, 0.36), (0.42, 0.06, 0.72), "choc"))
-house("g", tube("GingerDoorIcing", spline([(-0.25, -HD - 0.05, 0.0), (-0.25, -HD - 0.05, 0.6), (0, -HD - 0.05, 0.82),
-                                             (0.25, -HD - 0.05, 0.6), (0.25, -HD - 0.05, 0.0)]), 0.035, "icing", segs=6))
-for sx in (-1, 1):
-    house("h", torus("GingerWindow%d" % sx, 0.16, 0.035, "icing",
-                     Matrix.Translation((sx * 0.62, -HD - 0.03, 0.72)) @ Matrix.Rotation(math.radians(90), 4, "X"),
-                     segs_R=16, segs_r=6))
-    house("i", ellipsoid("GingerPane%d" % sx, (sx * 0.62, -HD - 0.01, 0.72), (0.14, 0.02, 0.14), "glow_yellow", subsurf=0))
-house("j", tube("GingerSnow", [(-HW - 0.05, -HD - 0.05, 0.03), (HW + 0.05, -HD - 0.05, 0.03), (HW + 0.05, HD + 0.05, 0.03),
-                               (-HW - 0.05, HD + 0.05, 0.03), (-HW - 0.05, -HD - 0.05, 0.03)], 0.06, "icing", segs=6))
-blocks(X, Y, 1.0)
+# a gingerbread house: GameCommon's gingerbread cottage, stood here by the game (scripts/main.gd), which also keeps him
+# out of its walls while leaving the doorway open
+HOUSE_AT = (2.3, 0.4, -12.0)  # x, y, turned (degrees)
 
 # a plate of cookies
 X, Y = 9.8, -1.6
@@ -739,6 +703,7 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
                "candle": [CANDLE_AT[0], 0.0, -CANDLE_AT[1]],
                "presents": [PRESENTS_AT[0], 0.0, -PRESENTS_AT[1]],
                "tree": [TREE_AT[0], 0.0, -TREE_AT[1]],
+               "house": [HOUSE_AT[0], 0.0, -HOUSE_AT[1], HOUSE_AT[2]],
                "light_strings": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in LIGHT_STRINGS],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are
                "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,
