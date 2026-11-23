@@ -291,7 +291,18 @@ for nm, x0, x1 in (("UpperLeft", SIDE_L, WIN_L - 0.9), ("UpperRight", WIN_R + 0.
         cx = x0 + (i + 0.5) * (x1 - x0) / n
         box("%sDoor%d" % (nm, i), (cx, WALL - CAB_DEEP - 0.04, CAB_B + 3.2), ((x1 - x0) / n - 0.25, 0.1, 5.9), "cabinet_dark")
         box("%sPull%d" % (nm, i), (cx + (x1 - x0) / n / 2 - 0.5, WALL - CAB_DEEP - 0.12, CAB_B + 1.0), (0.14, 0.1, 1.0), "handle")
-box("WallAboveWindow", ((WIN_L + WIN_R) / 2, WALL + 0.2, 7.6 + 3.0), (WIN_R - WIN_L + 1.8, 0.4, 6.0), "window_frame")
+# a short cabinet bridging the two over the window, set back a little ("There should be cabinets above the window")
+OVER_B = WIN_T + 0.45
+box("UpperOverWindow", ((WIN_L + WIN_R) / 2, WALL - CAB_DEEP * 0.42, (OVER_B + CAB_B + 6.4) / 2),
+    (WIN_R - WIN_L + 1.8, CAB_DEEP * 0.84, CAB_B + 6.4 - OVER_B), "cabinet")
+for i in range(2):
+    cx = (WIN_L + WIN_R) / 2 + (i - 0.5) * (WIN_R - WIN_L + 1.8) / 2
+    box("UpperOverDoor%d" % i, (cx, WALL - CAB_DEEP * 0.84 - 0.04, (OVER_B + CAB_B + 6.4) / 2),
+        ((WIN_R - WIN_L + 1.8) / 2 - 0.25, 0.1, CAB_B + 6.4 - OVER_B - 0.5), "cabinet_dark")
+    box("UpperOverPull%d" % i, (cx + (0.5 - i) * ((WIN_R - WIN_L + 1.8) / 2 - 1.0), WALL - CAB_DEEP * 0.84 - 0.12, OVER_B + 0.8),
+        (0.14, 0.1, 0.9), "handle")
+sheet("WallOverWindow", [(WIN_L - 0.9, WALL, 7.6), (WIN_R + 0.9, WALL, 7.6), (WIN_R + 0.9, WALL, OVER_B + 0.1), (WIN_L - 0.9, WALL, OVER_B + 0.1)],
+      TILE, (1 / 1.9, 1 / 1.9), origin=(LEFT - 3, WALL, 0))
 # the window: a frosty night behind a white frame with one upright and one cross bar
 WMX, WMZ = (WIN_L + WIN_R) / 2, (WIN_B + WIN_T) / 2
 for pi_, (x0, x1, z0, z1) in enumerate(((WIN_L, WMX, WIN_B, WMZ), (WMX, WIN_R, WIN_B, WMZ), (WIN_L, WMX, WMZ, WIN_T),
@@ -311,24 +322,70 @@ for nm, c, s in (("FrameL", (WIN_L, WALL - 0.15, (WIN_B + WIN_T) / 2), (0.36, 0.
 # ("There should be a sink in front of the window, and there should be walls and the left and right ... instead of
 # just ending", the user.) A white ceramic basin let into the counter, a raised rim, a drain, and an arched tap
 # with two handles that stays under the window sill.
-CERAMIC = mat("ceramic")
 SMX = (SINK_X0 + SINK_X1) / 2
-for nm, corners in (
-        ("SinkFloor", [(SINK_X0, SINK_Y0, -SINK_DEEP), (SINK_X1, SINK_Y0, -SINK_DEEP), (SINK_X1, SINK_Y1, -SINK_DEEP),
-                       (SINK_X0, SINK_Y1, -SINK_DEEP)]),
-        ("SinkBack", [(SINK_X0, SINK_Y1, -SINK_DEEP), (SINK_X1, SINK_Y1, -SINK_DEEP), (SINK_X1, SINK_Y1, 0), (SINK_X0, SINK_Y1, 0)]),
-        ("SinkFront", [(SINK_X1, SINK_Y0, -SINK_DEEP), (SINK_X0, SINK_Y0, -SINK_DEEP), (SINK_X0, SINK_Y0, 0), (SINK_X1, SINK_Y0, 0)]),
-        ("SinkLeft", [(SINK_X0, SINK_Y0, -SINK_DEEP), (SINK_X0, SINK_Y1, -SINK_DEEP), (SINK_X0, SINK_Y1, 0), (SINK_X0, SINK_Y0, 0)]),
-        ("SinkRight", [(SINK_X1, SINK_Y1, -SINK_DEEP), (SINK_X1, SINK_Y0, -SINK_DEEP), (SINK_X1, SINK_Y0, 0), (SINK_X1, SINK_Y1, 0)])):
-    sheet(nm, corners, CERAMIC, (1, 1))
-RIM = 0.22
-for nm, c, s in (("RimFront", (SMX, SINK_Y0 - RIM / 2, 0.06), (SINK_X1 - SINK_X0 + RIM * 2, RIM, 0.12)),
-                 ("RimBack", (SMX, SINK_Y1 + RIM / 2, 0.06), (SINK_X1 - SINK_X0 + RIM * 2, RIM, 0.12)),
-                 ("RimLeft", (SINK_X0 - RIM / 2, (SINK_Y0 + SINK_Y1) / 2, 0.06), (RIM, SINK_Y1 - SINK_Y0, 0.12)),
-                 ("RimRight", (SINK_X1 + RIM / 2, (SINK_Y0 + SINK_Y1) / 2, 0.06), (RIM, SINK_Y1 - SINK_Y0, 0.12))):
-    box("Sink" + nm, c, s, "ceramic")
-put(lathe("SinkDrain", [(0, 0.0), (0.26, 0.0), (0.3, 0.02), (0.26, 0.05), (0.1, 0.03), (0, 0.03)], "steel", segs=20),
-    SMX, (SINK_Y0 + SINK_Y1) / 2, -SINK_DEEP)
+SMY = (SINK_Y0 + SINK_Y1) / 2
+RIM = 0.26
+
+
+def round_rect(hw, hh, rad, per=6):
+    """The outline of a rectangle with rounded corners, anticlockwise from its right side: 4 x (per + 1) points."""
+    pts = []
+    for cx, cy, a0 in ((hw - rad, hh - rad, 0), (-hw + rad, hh - rad, 90), (-hw + rad, -hh + rad, 180), (hw - rad, -hh + rad, 270)):
+        for i in range(per + 1):
+            a = math.radians(a0 + 90.0 * i / per)
+            pts.append((cx + rad * math.cos(a), cy + rad * math.sin(a)))
+    return pts
+
+
+# A real basin ("the sink needs a real basin and drain", the user): one skin of white ceramic from the foot of a
+# rolled rim on the counter, over the rim, down rounded walls and across a floor that falls to the drain.
+HW, HH = (SINK_X1 - SINK_X0) / 2, (SINK_Y1 - SINK_Y0) / 2
+FLOOR = -SINK_DEEP * 0.94
+BASIN = [  # half width, half depth, corner radius, height
+    (HW + RIM, HH + RIM, 0.50, 0.0),
+    (HW + RIM, HH + RIM, 0.50, 0.09),
+    (HW + RIM * 0.55, HH + RIM * 0.55, 0.46, 0.15),
+    (HW + 0.04, HH + 0.04, 0.42, 0.12),
+    (HW - 0.04, HH - 0.04, 0.42, -0.10),
+    (HW - 0.10, HH - 0.10, 0.48, -SINK_DEEP * 0.62),
+    (HW - 0.22, HH - 0.22, 0.60, -SINK_DEEP * 0.84),
+    (HW - 0.48, HH - 0.48, 0.70, FLOOR + 0.03),
+    (HW * 0.5, HH * 0.5, 0.60, FLOOR - 0.03),
+]
+bm = bmesh.new()
+skin = []
+for hw, hh, rad, z in BASIN:
+    skin.append([bm.verts.new((SMX + x, SMY + y, z)) for (x, y) in round_rect(hw, hh, rad)])
+# the last ring: a circle round the drain, each point straight in from the one above it
+seat = []
+for v in skin[-1]:
+    a = math.atan2(v.co.y - SMY, v.co.x - SMX)
+    seat.append(bm.verts.new((SMX + 0.37 * math.cos(a), SMY + 0.37 * math.sin(a), FLOOR - 0.07)))
+skin.append(seat)
+for a, b in zip(skin, skin[1:]):
+    n = len(a)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((a[i], a[j], b[j], b[i]))
+me = bpy.data.meshes.new("SinkBasin")
+bm.to_mesh(me)
+bm.free()
+for p in me.polygons:
+    p.use_smooth = True
+basin = bpy.data.objects.new("SinkBasin", me)
+SCENE.collection.objects.link(basin)
+me.materials.append(mat("ceramic"))
+# (an open skin, so the closed-part check does not apply: its faces must look up and inward instead)
+assert sum(p.normal.z for p in me.polygons if p.center.z < FLOOR + 0.1) > 0, "the basin floor faces down"
+# the drain: a steel flange let into the floor, a dark throat, a strainer of crossed bars with a little knob
+put(lathe("SinkDrainFlange", [(0, -0.20), (0.36, -0.08), (0.40, -0.02), (0.37, 0.01), (0.27, -0.01), (0.24, -0.09), (0, -0.09)],
+          "steel", segs=24), SMX, SMY, FLOOR - 0.03)
+put(lathe("SinkDrainThroat", [(0, -0.10), (0.24, -0.10), (0.24, -0.085), (0, -0.085)], "black", segs=20), SMX, SMY, FLOOR - 0.03)
+for turn in (0, 60, 120):
+    box("SinkDrainBar%d" % turn, (SMX, SMY, FLOOR - 0.095), (0.46, 0.035, 0.03), "steel", turn)
+put(lathe("SinkDrainKnob", [(0, 0), (0.05, 0), (0.06, 0.03), (0.03, 0.06), (0, 0.065)], "steel", segs=12), SMX, SMY, FLOOR - 0.085)
+# an overflow slot high on the back wall
+box("SinkOverflow", (SMX, SMY + HH - 0.05, -0.34), (0.5, 0.05, 0.11), "black")
 TAP_Y = SINK_Y1 + 0.5
 put(lathe("TapFoot", [(0, 0), (0.26, 0), (0.28, 0.08), (0.2, 0.16), (0.14, 0.3), (0, 0.3)], "steel", segs=20), SMX, TAP_Y)
 tube("TapNeck", spline([(SMX, TAP_Y, 0.2), (SMX, TAP_Y, 1.35), (SMX, TAP_Y - 0.35, 1.82), (SMX, TAP_Y - 0.95, 1.8),
@@ -570,15 +627,6 @@ for s in range(len(HOOKS) - 1):
     LIGHT_STRINGS.append([string_at(i / 40) for i in range(41)])
 
 # ---------------------------------------------------------------- the things on the counter, left to right
-# a bowl of oranges
-X, Y = -6.0, 2.0
-put(lathe("Bowl", [(0, 0.12), (0.7, 0.10), (1.25, 0.45), (1.5, 1.0), (1.42, 1.02), (1.15, 0.52), (0.6, 0.22), (0, 0.22)],
-          "ceramic", segs=40), X, Y)
-for i, (ox, oy, oz) in enumerate(((-0.5, -0.3, 0.75), (0.5, -0.35, 0.78), (0.05, 0.5, 0.76), (0.0, -0.02, 1.35), (-0.75, 0.45, 0.8))):
-    ellipsoid("Orange%d" % i, (X + ox, Y + oy, oz), (0.5, 0.5, 0.47), "orange", subsurf=0)
-ellipsoid("OrangeLeaf", (X + 0.12, Y - 0.05, 1.83), (0.22, 0.10, 0.03), "orange_leaf", subsurf=0)
-blocks(X, Y, 1.5)
-
 # a red kettle
 X, Y = -3.2, 2.2
 put(lathe("Kettle", [(0, 0), (1.15, 0), (1.3, 0.15), (1.28, 0.9), (1.0, 1.75), (0.55, 2.05), (0, 2.1)], "kettle", segs=40), X, Y)
@@ -612,7 +660,7 @@ TREE_AT = (1.4, 2.4)
 
 # a gingerbread house: GameCommon's gingerbread cottage, stood here by the game (scripts/main.gd), which also keeps him
 # out of its walls while leaving the doorway open
-HOUSE_AT = (2.3, 0.4, -12.0)  # x, y, turned (degrees)
+HOUSE_AT = (-6.6, 1.3, 16.0)  # x, y, turned (degrees)
 
 # a plate of cookies
 X, Y = 9.8, -1.6

@@ -57,7 +57,7 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
 - **The sink** under the window is a basin let into the counter (the counter top is in pieces round it) with a tap; he
   cannot walk into it (`boxes` in `data/kitchen.json`). The counter ends at tiled side walls, which are one-sided so
   the camera can swing outside them. The props that stood under the window in the concept moved to make room.
-- **The look** is a cosy night: the room is nearly dark and lit by the bulbs, the candle, the star and a low warm glow
+- **The look** is a cosy night with the overhead light off: the room is nearly dark and lit by the bulbs, the candle and a faint warm glow, and the bulbs and candle throw the shadows
   (`_build_stage` in `scripts/main.gd`). Nothing is left flat: `DETAIL` there lays a grey picture (`textures/*.png`:
   paper, felt, glaze, sugar, grain, dots, stripes, made by the kitchen build script) over every plain-coloured thing.
   The window is a real opening onto a painted snowy night, with snow blown between the glass and the painting and
@@ -69,6 +69,9 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   `data/kitchen.json`. The Blender build makes the rope and the berries, and the line of a light string that loops loosely under it;
   the wire and the C9 bulbs on that line are GameCommon's Christmas lights (`christmas_lights/`,
   `kit.sh install godot/christmas-lights`), set up in `_build_stage`.
+- **His head** turns on a `HeadPivot` in the model. `_head_look` in `scripts/main.gd` picks what he looks at every few
+  seconds (a thing on the counter near him, now and then the player), and standing still he breathes, shifts his
+  weight, turns to face what he is watching and every so often sniffs the air (`SNIFF_TIME`).
 - **Dust** is GameCommon's cloud puffs (`scripts/cloud_puffs.gd`, `kit.sh install godot/cloud-dust`, Ringtail's foot dust made
   generic): a ring at each footfall, at take-off and on landing, called from `_walk_about`. Things he can stand on have
   a height in `data/kitchen.json` (the fourth number of an obstacle); `CLIMB` in `scripts/main.gd` is the tallest.

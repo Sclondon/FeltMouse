@@ -68,11 +68,12 @@ const CLIMB := 1.3         ## the tallest thing he can land on
 const STEP_UP := 0.25      ## low enough to walk up onto without a jump (the cookie plate)
 const MUG_REACH := 2.3     ## how near his mug the interact button means "go home"
 const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in front of the mug
-const LIGHT_STRING_ENERGY := 0.07  ## each swag's one real light (the lights component multiplies it by the scale)
+const LIGHT_STRING_ENERGY := 0.08  ## each swag's one real light (the lights component multiplies it by the scale)
 const TREE_HEIGHT := 0.29  ## the little tree's height in real metres (it must clear the cabinets above it)
 const HOUSE_SIZE := 10.5  ## the gingerbread house: this game's units to one of its metres (12.5 is life size; a little under, to fit by the mug)
 const NUTCRACKER_SIZE := 7.5  ## the nutcracker: this game's units to one of his metres (12.5 is life size, 47 cm; he must fit under the cabinets)
 const NUT_REACH := 2.2       ## how near the nutcracker the interact button means "crack the walnut"
+const SNIFF_TIME := 1.8     ## how long a sniff of the air lasts, seconds
 
 ## How he is posed at one moment.
 class Pose:
@@ -90,6 +91,8 @@ class Pose:
 	var lift_right := 0.0
 	var arm_swing := 0.0   # empty arms swinging, left forward (+)
 	var tail_wag := 0.0    # the tail swung aside by his steps
+	var head_yaw := 0.0    # his head turned left (+) or right
+	var head_pitch := 0.0  # and tipped up (+) or down
 	var raise := 0.0    # arms: 0 down holding the candy in front, 1 up over his head
 	var flight := -1.0  # the candy in the air: 0 thrown .. 1 caught (-1 it is in his hands)
 	var seen := true
@@ -140,6 +143,17 @@ var _landed := 0.0  # 1 as he lands, fading: the squash
 var _lean := 0.0    # leaning into a turn
 var _face_was := 0.0
 var _leg_rest: Array[Vector3] = []
+var _head: Node3D
+var _head_yaw := 0.0
+var _head_pitch := 0.0
+var _look_left := 1.0      # seconds until he picks something new to look at
+var _look_some := false    # he is looking at something
+var _look_camera := false  # ... at the player
+var _look_point := Vector3.ZERO
+var _sights: Array[Vector3] = []  # the things on the counter worth a look
+var _idle_time := 0.0
+var _sniff := 0.0          # seconds of a sniff still to go
+var _sniff_due := 3.0      # idle seconds before the next one
 var _dust: CloudPuffs
 var _tree: Node3D
 var _house: Node3D
@@ -159,6 +173,7 @@ func _ready() -> void:
 	_tail = model.find_child("TailPivot", true, false)
 	_tail_rest = _tail.basis
 	_leg_rest = [_legs[0].position, _legs[1].position]
+	_head = model.find_child("HeadPivot", true, false)
 	_arms = [model.find_child("ArmPivotL", true, false), model.find_child("ArmPivotR", true, false)]
 	_arms_rest = _arms[0].position
 	_candy = model.find_child("CandyPivot", true, false)
@@ -351,11 +366,13 @@ func _build_stage() -> void:
 	we.environment = env
 	add_child(we)
 
-	# one faint warm lamp from over the player's shoulder, for the shadows that sit things on the counter
+	# The overhead light is off ("the overhead light should be off", the user): the node is kept, dark, for anyone who
+	# wants it back. Shadows now come from the candle and the strings of bulbs.
 	var lamp := DirectionalLight3D.new()
 	lamp.light_color = Color(1.0, 0.80, 0.58)
-	lamp.light_energy = 0.2
-	lamp.shadow_enabled = true
+	lamp.light_energy = 0.0
+	lamp.visible = false
+	lamp.shadow_enabled = false
 	lamp.directional_shadow_max_distance = 34.0
 	lamp.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(28.0), 0.0)
 	add_child(lamp)
@@ -386,7 +403,7 @@ func _build_stage() -> void:
 	for x: float in [-5.0, 3.0, 10.5]:
 		var glow := OmniLight3D.new()
 		glow.light_color = Color(1.0, 0.66, 0.36)
-		glow.light_energy = 0.5
+		glow.light_energy = 0.2
 		glow.omni_range = 10.0
 		glow.omni_attenuation = 1.2
 		glow.position = Vector3(x, 3.4, 2.4)
@@ -435,6 +452,9 @@ func _build_stage() -> void:
 		string.seed = 3 + get_child_count()
 		add_child(string)
 		string.hang(line)
+		if not phone:
+			for bulb_light: OmniLight3D in string.find_children("*", "OmniLight3D", true, false):
+				bulb_light.shadow_enabled = true
 
 	# the candle: GameCommon's candle, a cream pillar ringed with holly, part burnt down, with its own flickering light
 	if _walk.has("candle"):
@@ -442,6 +462,7 @@ func _build_stage() -> void:
 		var candle := Candle.make(Candle.Kind.HOLLY, Candle.Wax.CREAM, 12.5)  # (12.5 of this game's units to a metre)
 		candle.burnt = 0.25
 		candle.low_detail = phone
+		candle.light_shadows = not phone
 		candle.position = Vector3(at[0], at[1], at[2])
 		add_child(candle)
 
@@ -544,6 +565,20 @@ func _build_stage() -> void:
 		snow.mesh = flake
 		add_child(snow)
 
+	# the things he might look at: whatever stands on the counter, the window, the candle's flame, the tree's top
+	for o: Array in _walk["obstacles"]:
+		_sights.append(Vector3(o[0], minf(float(o[3]) if o.size() > 3 else 2.0, 3.0) * 0.7, o[1]))
+	if _walk.has("window"):
+		_sights.append(Vector3(_walk["window"]["x"], _walk["window"]["y"], _walk["window"]["glass"]))
+	if _walk.has("candle"):
+		_sights.append(Vector3(_walk["candle"][0], 1.4, _walk["candle"][2]))
+	if _walk.has("tree"):
+		_sights.append(Vector3(_walk["tree"][0], 4.6, _walk["tree"][2]))
+	if _walk.has("house"):
+		_sights.append(Vector3(_walk["house"][0], 1.2, _walk["house"][2]))
+	if _walk.has("presents"):
+		_sights.append(Vector3(_walk["presents"][0], 0.8, _walk["presents"][2]))
+
 	_camera = Camera3D.new()
 	_camera.fov = 41.0
 	add_child(_camera)
@@ -605,6 +640,7 @@ func step(delta: float) -> void:
 	# ("The mouse shouldnt carry the candy around all the time", the user)
 	var holding := act != Act.FREE and act != Act.HOP_DOWN
 	_hold = move_toward(_hold, 1.0 if holding else 0.0, delta * 3.5)
+	_head_look(p, delta)
 	_apply(p)
 	_focus = _focus.lerp(_mouse.position + Vector3(0.0, 2.9, 0.0), minf(delta * 5.0, 1.0) if delta > 0.0 else 1.0)
 	_place_camera()
@@ -882,6 +918,76 @@ func _toss_pose(p: Pose, t: float) -> void:
 		p.raise = 1.0 - smoothstep(0.0, 1.0, u)
 
 
+## Where his head points, and what he does when left alone ("he needs an idle, sniff the air, and he should look
+## at things", the user). Every few seconds he picks something to look at: a thing on the counter near him (ahead of
+## him if he is walking), now and then the player, now and then nothing. Standing still he breathes, shifts his
+## weight, turns to face what he is looking at if it is too far round, and every so often lifts his nose and sniffs.
+func _head_look(p: Pose, delta: float) -> void:
+	var idle := act == Act.FREE and _on_ground and _moving < 0.05
+	_idle_time = _idle_time + delta if idle else 0.0
+	var head := p.pos + Vector3(0.0, 1.15, 0.0)
+
+	_look_left -= delta
+	if _look_left <= 0.0:
+		_look_left = randf_range(1.6, 4.2)
+		var pick := randf()
+		_look_camera = pick < 0.16
+		_look_some = _look_camera
+		if pick >= 0.28:
+			var best := -1.0
+			for sight: Vector3 in _sights:
+				var to := sight - head
+				var far := Vector2(to.x, to.z).length()
+				if far > 10.0 or far < 0.6:
+					continue
+				var round := absf(angle_difference(p.face, atan2(to.x, to.z)))
+				if _moving > 0.3 and round > 1.2:
+					continue
+				var score := randf() * 0.7 + 1.0 / (1.0 + far * 0.3) - round * 0.08
+				if score > best:
+					best = score
+					_look_point = sight
+					_look_some = true
+
+	var want_yaw := 0.0
+	var want_pitch := 0.0
+	if _look_some and p.seen:
+		var at: Vector3 = _camera.position if _look_camera else _look_point
+		var to := at - head
+		want_yaw = angle_difference(p.face, atan2(to.x, to.z))
+		want_pitch = atan2(to.y, Vector2(to.x, to.z).length())
+		if idle and absf(want_yaw) > 0.95:
+			# too far round to look at over his shoulder: he shuffles round to face it
+			_face += signf(want_yaw) * minf(absf(want_yaw) - 0.9, delta * 2.2)
+
+	# sniffing the air: nose up, a run of quick little bobs, stretched a touch taller
+	if idle and _idle_time > _sniff_due:
+		_sniff = SNIFF_TIME
+		_sniff_due = _idle_time + randf_range(4.5, 9.0)
+	if not idle:
+		_sniff = 0.0
+		_sniff_due = randf_range(2.0, 4.5)
+	var sniffing := 0.0
+	if _sniff > 0.0:
+		_sniff -= delta
+		var through := 1.0 - _sniff / SNIFF_TIME
+		sniffing = smoothstep(0.0, 0.18, through) * (1.0 - smoothstep(0.8, 1.0, through))
+		want_pitch = lerpf(want_pitch, 0.55, sniffing)
+		want_pitch += 0.07 * sin(_time * 26.0) * sniffing
+		want_yaw += 0.06 * sin(_time * 3.1) * sniffing
+		p.squash *= 1.0 + 0.035 * sniffing
+		p.tilt -= 0.07 * sniffing
+
+	if idle:
+		# breathing and a slow shift of weight from foot to foot
+		p.squash *= 1.0 + 0.014 * sin(_time * 2.3)
+		p.roll += 0.03 * sin(_time * 0.8)
+	_head_yaw = lerpf(_head_yaw, clampf(want_yaw, -1.05, 1.05), minf(delta * 5.0, 1.0))
+	_head_pitch = lerpf(_head_pitch, clampf(want_pitch, -0.45, 0.62), minf(delta * 6.0, 1.0))
+	p.head_yaw = _head_yaw
+	p.head_pitch = _head_pitch
+
+
 func _apply(p: Pose) -> void:
 	_mouse.visible = p.seen
 	_mouse.position = p.pos
@@ -891,6 +997,7 @@ func _apply(p: Pose) -> void:
 	_legs[1].rotation = Vector3(p.kick + p.stride, 0.0, 0.0)
 	_legs[0].position = _leg_rest[0] + Vector3.UP * p.lift_left
 	_legs[1].position = _leg_rest[1] + Vector3.UP * p.lift_right
+	_head.basis = Basis(Vector3.UP, p.head_yaw) * Basis(Vector3.RIGHT, -p.head_pitch)
 	_tail.basis = Basis(Vector3.UP, 0.2 * sin(_time * 2.3) + 0.07 * sin(_time * 5.1) + p.tail_wag) * Basis(Vector3.RIGHT, -0.5 * p.kick + 0.35 * p.bounce * sin(_phase * 2.0)) * _tail_rest
 
 	# his arms swing up as one from the shoulders, and the candy goes with his hands until it is thrown

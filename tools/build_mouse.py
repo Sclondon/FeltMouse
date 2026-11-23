@@ -306,8 +306,10 @@ def flat_r(p):
 shed("FibresMug", ["Mug", "MugHandle"], "fibre_brown", 300, 110, lambda p, n: abs(n.z) < 0.5 and 0.03 < p.z < 0.58)
 shed("FibresCream", ["CreamLower", "CreamUpper", "MugFoot"], "fibre_white", 110, 90,
      lambda p, n: (p.z < 0.1 or n.z > -0.2) and (p.z < 0.1 or flat_r(p) > 0.24))
-shed("FibresMouse", ["Body", "Head", "EarL", "EarR"], "fibre_white", 110, 55,
-     lambda p, n: p.z > 0.68 and not (p.y < -0.12 and 1.1 < p.z < 1.36 and abs(p.x) < 0.14))
+shed("FibresBody", ["Body"], "fibre_white", 60, 30, lambda p, n: 0.68 < p.z < 1.0)
+# (the head's own, so that they turn with it; none on his face)
+shed("FibresHead", ["Head", "EarL", "EarR"], "fibre_white", 55, 28,
+     lambda p, n: p.z > 1.12 and not (p.y < -0.12 and 1.1 < p.z < 1.36 and abs(p.x) < 0.14))
 shed("FibresScarf", ["Scarf"], "fibre_red", 22, 14, lambda p, n: n.x * p.x + n.y * (p.y - 0.03) > 0.0)
 shed("FibresWafer", ["Wafer"], "fibre_brown", 25, 10, lambda p, n: p.z > 0.85)
 
@@ -338,8 +340,12 @@ def hang(names, parent, at):
 ORIGIN = Vector((0, 0, 0))
 root = pivot("MouseRoot", ORIGIN)
 hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith(
-    ("Body", "Head", "Nose", "Eye", "Ear", "Whisker", "Scarf", "FibresMouse", "FibresScarf"))],
+    ("Body", "Scarf", "FibresBody", "FibresScarf"))],
     root, ORIGIN)
+# his head turns and nods on his neck, inside the collar
+NECK = Vector((0, 0.0, 1.08))
+hang([o.name for o in SCENE.objects if o.type == "MESH" and o.name.startswith(
+    ("Head", "Nose", "Eye", "Ear", "Whisker", "FibresHead"))], pivot("HeadPivot", NECK, root), NECK)
 # each arm swings from the line of his shoulders; the candy has a pivot of its own so it can be thrown
 for side in ("L", "R"):  # an arm each, so they can swing as he walks
     hang(["Arm" + side, "Hand" + side], pivot("ArmPivot" + side, SHOULDERS, root), SHOULDERS)

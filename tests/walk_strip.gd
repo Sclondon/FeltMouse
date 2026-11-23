@@ -24,6 +24,7 @@ func _initialize() -> void:
 	var homed := false
 	var toss_at := -1.0
 	var home_at := -1.0
+	var idle_from := -1.0
 	while t < 40.0:
 		main.step(1.0 / 60.0)
 		t += 1.0 / 60.0
@@ -33,7 +34,17 @@ func _initialize() -> void:
 			name = "walk_%d" % taken
 			taken += 1
 		if main.act == main.Act.FREE and main.autopilot.is_empty():
-			if not tossed:
+			# standing about first: two looks, then a sniff of the air
+			if idle_from < 0.0:
+				idle_from = t
+			for mark: Array in [[1.2, "idle_a"], [2.8, "idle_b"], [4.0, "sniff"]]:
+				if absf(t - idle_from - mark[0]) < 0.5 / 60.0:
+					name = mark[1]
+			if absf(t - idle_from - 3.3) < 0.5 / 60.0:
+				main._sniff_due = 0.0
+			if t < idle_from + 5.6:
+				pass
+			elif not tossed:
 				tossed = true
 				main.toss()
 				toss_at = t + 0.95

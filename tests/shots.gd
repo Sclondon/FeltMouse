@@ -4,7 +4,7 @@ extends SceneTree
 ##   godot --path . --audio-driver Dummy --resolution 540x960 -s res://tests/shots.gd -- --out=<dir>
 ## --frames=<dir> also saves every frame at --fps= (default 30), for a film.
 
-const WAY := [Vector2(-3.0, 1.6), Vector2(-6.0, 0.6), Vector2(-8.2, -1.5), Vector2(-6.0, 0.6), Vector2(-3.0, 1.6),
+const WAY := [Vector2(-3.0, 1.6), Vector2(-6.5, 1.7), Vector2(-8.3, 1.0), Vector2(-6.5, 1.7), Vector2(-3.0, 1.6),
 	Vector2(0.6, 1.8), Vector2(2.6, 1.9), Vector2(5.5, 1.6), Vector2(7.9, 1.4), Vector2(8.45, 0.3), Vector2(9.6, -0.2), Vector2(10.4, 0.1),
 	Vector2(9.6, -0.2), Vector2(8.45, 0.3), Vector2(7.9, 1.4), Vector2(5.5, 1.6), Vector2(2.4, 1.9)]
 
