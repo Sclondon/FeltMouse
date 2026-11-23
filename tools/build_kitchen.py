@@ -250,6 +250,40 @@ def striped_tube(name, points, radius, segs=10, wraps=1.3):
 WOOD = painted("counter_wood", wood_picture(), rough=0.45)
 TILE = painted("wall_tile", tile_picture(), rough=0.3)
 
+
+def plaster_picture():
+    """Painted plaster for the walls: warm cream, cloudy, with the faint sweep of a trowel and brush. Repeats without a seam."""
+    rng = np.random.default_rng(14)
+    n = 512
+
+    def cloud(cells_y, cells_x):
+        g = rng.random((cells_y, cells_x))
+        iy = np.arange(n) * cells_y / n
+        ix = np.arange(n) * cells_x / n
+        y0 = np.floor(iy).astype(int)
+        x0 = np.floor(ix).astype(int)
+        fy = iy - y0
+        fx = ix - x0
+        fy = fy * fy * (3 - 2 * fy)
+        fx = fx * fx * (3 - 2 * fx)
+        y1 = (y0 + 1) % cells_y
+        x1 = (x0 + 1) % cells_x
+        top = g[y0][:, x0] * (1 - fx)[None, :] + g[y0][:, x1] * fx[None, :]
+        bot = g[y1][:, x0] * (1 - fx)[None, :] + g[y1][:, x1] * fx[None, :]
+        return top * (1 - fy)[:, None] + bot * fy[:, None]
+
+    wash = cloud(3, 3) * 0.45 + cloud(7, 7) * 0.3 + cloud(18, 18) * 0.25
+    sweep = cloud(40, 5) * 0.5 + cloud(6, 48) * 0.5  # long soft strokes both ways
+    grit = cloud(160, 160)
+    shade = 0.80 + 0.20 * (wash * 0.55 + sweep * 0.3 + grit * 0.15)
+    cream = np.array([0.80, 0.72, 0.58])
+    warm = np.array([0.74, 0.62, 0.47])  # where the wash pools it is a little deeper and warmer
+    pix = cream[None, None, :] * wash[:, :, None] + warm[None, None, :] * (1 - wash[:, :, None])
+    return np.clip(pix * shade[:, :, None], 0, 1).astype(np.float32)
+
+
+PLASTER = painted("wall_plaster", plaster_picture(), rough=0.95)
+
 # ---------------------------------------------------------------- the room: counter, wall, cabinets, window
 # the counter top (its picture: 4 units of wood to a repeat), its front edge, and a little beyond each end
 for nm, (x0, x1, y0, y1) in (("CounterLeft", (SIDE_L, SINK_X0, FRONT, WALL)), ("CounterRight", (SINK_X1, SIDE_R, FRONT, WALL)),
@@ -280,10 +314,19 @@ while x < SIDE_R - 0.5:
 CAB_B, CAB_DEEP = 5.5, 2.6
 WIN_L, WIN_R, WIN_B, WIN_T = 3.1, 8.0, 2.3, 7.3
 # the tiled wall, in four pieces round the window's opening (one picture across them all)
-for nm, (x0, x1, z0, z1) in (("WallLeft", (LEFT - 3, WIN_L, 0, 7.6)), ("WallRight", (WIN_R, RIGHT + 3, 0, 7.6)),
-                             ("WallBelow", (WIN_L, WIN_R, 0, WIN_B)), ("WallAbove", (WIN_L, WIN_R, WIN_T, 7.6))):
-    sheet(nm, [(x0, WALL, z0), (x1, WALL, z0), (x1, WALL, z1), (x0, WALL, z1)], TILE, (1 / 1.9, 1 / 1.9),
-          origin=(LEFT - 3, WALL, 0))
+# ("The walls should have a different texture than the tile backsplash", the user: the tile is only a backsplash,
+# from the counter up to the cabinets; above it, over the window and on the side walls it is painted plaster.)
+SPLASH = 5.5  # the top of the tile: the upper cabinets' bottom edge
+for nm, (x0, x1, z0, z1), wears in (("WallLeft", (LEFT - 3, WIN_L, 0, SPLASH), TILE), ("WallRight", (WIN_R, RIGHT + 3, 0, SPLASH), TILE),
+                                    ("WallBelow", (WIN_L, WIN_R, 0, WIN_B), TILE),
+                                    ("WallUpLeft", (LEFT - 3, WIN_L, SPLASH, 7.6), PLASTER),
+                                    ("WallUpRight", (WIN_R, RIGHT + 3, SPLASH, 7.6), PLASTER),
+                                    ("WallAbove", (WIN_L, WIN_R, WIN_T, 7.6), PLASTER)):
+    per = (1 / 1.9, 1 / 1.9) if wears is TILE else (0.16, 0.16)
+    sheet(nm, [(x0, WALL, z0), (x1, WALL, z0), (x1, WALL, z1), (x0, WALL, z1)], wears, per, origin=(LEFT - 3, WALL, 0))
+# a rounded cap along the top of the tile, either side of the window
+for nm, x0, x1 in (("SplashCapLeft", LEFT - 0.4, WIN_L - 0.2), ("SplashCapRight", WIN_R + 0.2, RIGHT + 0.4)):
+    box(nm, ((x0 + x1) / 2, WALL - 0.05, SPLASH), (x1 - x0, 0.12, 0.16), "window_frame")
 for nm, x0, x1 in (("UpperLeft", SIDE_L, WIN_L - 0.9), ("UpperRight", WIN_R + 0.9, SIDE_R)):
     box(nm, ((x0 + x1) / 2, WALL - CAB_DEEP / 2, CAB_B + 3.2), (x1 - x0, CAB_DEEP, 6.4), "cabinet")
     n = max(1, round((x1 - x0) / 3.4))
@@ -302,7 +345,7 @@ for i in range(2):
     box("UpperOverPull%d" % i, (cx + (0.5 - i) * ((WIN_R - WIN_L + 1.8) / 2 - 1.0), WALL - CAB_DEEP * 0.84 - 0.12, OVER_B + 0.8),
         (0.14, 0.1, 0.9), "handle")
 sheet("WallOverWindow", [(WIN_L - 0.9, WALL, 7.6), (WIN_R + 0.9, WALL, 7.6), (WIN_R + 0.9, WALL, OVER_B + 0.1), (WIN_L - 0.9, WALL, OVER_B + 0.1)],
-      TILE, (1 / 1.9, 1 / 1.9), origin=(LEFT - 3, WALL, 0))
+      PLASTER, (0.16, 0.16), origin=(LEFT - 3, WALL, 0))
 # the window: a frosty night behind a white frame with one upright and one cross bar
 WMX, WMZ = (WIN_L + WIN_R) / 2, (WIN_B + WIN_T) / 2
 for pi_, (x0, x1, z0, z1) in enumerate(((WIN_L, WMX, WIN_B, WMZ), (WMX, WIN_R, WIN_B, WMZ), (WIN_L, WMX, WMZ, WIN_T),
@@ -399,12 +442,12 @@ for sx in (-1, 1):
     tube("TapHandleB%d" % sx, [(hx, TAP_Y - 0.22, 0.46), (hx, TAP_Y + 0.22, 0.46)], 0.055, "steel", segs=8)
 BOXES.append((SINK_X0 - RIM, SINK_Y0 - RIM, SINK_X1 + RIM, WALL))
 
-# the side walls: tiled like the back wall, from below the counter to above the cabinets, running out toward the room
+# the side walls: painted plaster, from below the counter to above the cabinets, running out toward the room
 ROOM = FRONT - 9.0
-sheet("WallSideLeft", [(SIDE_L, ROOM, -12.6), (SIDE_L, WALL, -12.6), (SIDE_L, WALL, 13.6), (SIDE_L, ROOM, 13.6)], TILE,
-      (1 / 1.9, 1 / 1.9), origin=(SIDE_L, WALL, 0))
-sheet("WallSideRight", [(SIDE_R, WALL, -12.6), (SIDE_R, ROOM, -12.6), (SIDE_R, ROOM, 13.6), (SIDE_R, WALL, 13.6)], TILE,
-      (1 / 1.9, 1 / 1.9), origin=(SIDE_R, WALL, 0))
+sheet("WallSideLeft", [(SIDE_L, ROOM, -12.6), (SIDE_L, WALL, -12.6), (SIDE_L, WALL, 13.6), (SIDE_L, ROOM, 13.6)], PLASTER,
+      (0.16, 0.16), origin=(SIDE_L, WALL, 0))
+sheet("WallSideRight", [(SIDE_R, WALL, -12.6), (SIDE_R, ROOM, -12.6), (SIDE_R, ROOM, 13.6), (SIDE_R, WALL, 13.6)], PLASTER,
+      (0.16, 0.16), origin=(SIDE_R, WALL, 0))
 
 # ---------------------------------------------------------------- outside the window: a snowy night
 # The window is a real opening: behind the glass is a short tunnel through the wall and, set back, a painted
@@ -656,7 +699,7 @@ blocks(0.68, 0, 0.2, 0.5)
 
 # a little Christmas tree in a pot: GameCommon's Christmas tree (needles, pot, lights, ornaments, star), stood here by
 # the game (scripts/main.gd), which keeps him out of its pot
-TREE_AT = (1.4, 2.4)
+TREE_AT = (13.7, 2.5)  # ("The tree and nut cracker should be in the right corner", the user)
 
 # a gingerbread house: GameCommon's gingerbread cottage, stood here by the game (scripts/main.gd), which also keeps him
 # out of its walls while leaving the doorway open
@@ -689,14 +732,15 @@ for i in range(5):
 blocks(X, Y, 0.8)
 
 # a nutcracker soldier: GameCommon's nutcracker, stood here by the game (scripts/main.gd) with a walnut in his jaw
-NUTCRACKER_AT = (10.4, 1.6, -20.0)  # x, y, turned (degrees)
+NUTCRACKER_AT = (11.7, 2.4, -28.0)  # x, y, turned (degrees)
 
 # wrapped presents: a small heap from GameCommon's presents component, set down here by the game (scripts/main.gd),
 # which also takes its footprints to keep him out of them
 PRESENTS_AT = (12.3, -0.45)
 
-# a lit candle, at the right end: GameCommon's candle component, stood here by the game (scripts/main.gd)
-X, Y = 13.9, 1.5
+# a lit candle, left of the window where the tree used to stand: GameCommon's candle component, stood here by the
+# game (scripts/main.gd)
+X, Y = 1.5, 2.5
 CANDLE_AT = (X, Y)
 blocks(X, Y, 0.8)
 

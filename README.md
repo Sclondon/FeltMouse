@@ -62,6 +62,8 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   paper, felt, glaze, sugar, grain, dots, stripes, made by the kitchen build script) over every plain-coloured thing.
   The window is a real opening onto a painted snowy night, with snow blown between the glass and the painting and
   frost on the panes (`textures/frost_cover.png`).
+- **The walls** are painted plaster (a picture the kitchen build paints); the tile is only a backsplash on the back wall,
+  from the counter up to the cabinets, with a cap along its top.
 - **The upper cabinets** hang low enough to be in view either side of the window (`CAB_B` in the kitchen build); the
   garland and its lights run along the front of their bottom edge.
 - **The garland** is GameCommon's pine tree (`scripts/pine_tree.gd`, `kit.sh install godot/pine-tree`): its needle fronds
