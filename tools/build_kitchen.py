@@ -640,37 +640,8 @@ for i in range(5):
     striped_tube("Cane%d" % i, path, 0.085)
 blocks(X, Y, 0.8)
 
-# a nutcracker soldier
-X, Y = 10.4, 1.6
-NM = Matrix.Translation((X, Y, 0)) @ Matrix.Rotation(math.radians(-20), 4, "Z")
-
-
-def nut(o):
-    o.data.transform(NM @ o.matrix_world)
-    o.matrix_world = Matrix.Identity(4)
-    return o
-
-
-nut(box("NutBase", (0, 0, 0.08), (0.9, 0.7, 0.16), "nut_gold"))
-for sx in (-1, 1):
-    nut(box("NutBoot%d" % sx, (sx * 0.17, -0.03, 0.3), (0.26, 0.36, 0.28), "black"))
-    nut(tube("NutLeg%d" % sx, [(sx * 0.17, 0, 0.42), (sx * 0.17, 0, 1.05)], 0.12, "nut_blue"))
-    nut(tube("NutArm%d" % sx, [(sx * 0.42, 0, 1.75), (sx * 0.44, 0, 1.15)], 0.1, "nut_red"))
-    nut(ellipsoid("NutHand%d" % sx, (sx * 0.44, 0, 1.08), (0.1, 0.1, 0.1), "nut_skin", subsurf=0))
-    nut(ellipsoid("NutShoulder%d" % sx, (sx * 0.42, 0, 1.8), (0.15, 0.13, 0.07), "nut_gold", subsurf=0))
-nut(lathe("NutCoat", [(0, 1.0), (0.36, 1.0), (0.33, 1.85), (0, 1.9)], "nut_red", segs=20))
-nut(box("NutBelt", (0, 0, 1.2), (0.76, 0.76, 0.1), "black"))
-for k in range(3):
-    nut(ellipsoid("NutButton%d" % k, (0, -0.34, 1.38 + k * 0.17), (0.045, 0.03, 0.045), "nut_gold", subsurf=0))
-nut(lathe("NutHead", [(0, 1.88), (0.27, 1.9), (0.29, 2.3), (0, 2.34)], "nut_skin", segs=20))
-nut(lathe("NutHat", [(0, 2.3), (0.31, 2.3), (0.31, 2.36), (0.27, 2.36), (0.25, 2.95), (0, 2.97)], "black", segs=20))
-nut(box("NutHatBand", (0, -0.27, 2.5), (0.2, 0.05, 0.2), "nut_gold"))
-nut(prism("NutBeard", [(-0.2, 0), (0.2, 0), (0.0, -0.36)], -0.03, 0.03, "nut_white",
-          Matrix.Translation((0, -0.29, 2.02)) @ Matrix.Rotation(math.radians(90), 4, "X")))
-nut(box("NutMoustache", (0, -0.29, 2.06), (0.36, 0.05, 0.07), "nut_white"))
-for sx in (-1, 1):
-    nut(ellipsoid("NutEye%d" % sx, (sx * 0.11, -0.275, 2.18), (0.035, 0.02, 0.045), "black", subsurf=0))
-blocks(X, Y, 0.6)
+# a nutcracker soldier: GameCommon's nutcracker, stood here by the game (scripts/main.gd) with a walnut in his jaw
+NUTCRACKER_AT = (10.4, 1.6, -20.0)  # x, y, turned (degrees)
 
 # wrapped presents: a small heap from GameCommon's presents component, set down here by the game (scripts/main.gd),
 # which also takes its footprints to keep him out of them
@@ -704,6 +675,7 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
                "presents": [PRESENTS_AT[0], 0.0, -PRESENTS_AT[1]],
                "tree": [TREE_AT[0], 0.0, -TREE_AT[1]],
                "house": [HOUSE_AT[0], 0.0, -HOUSE_AT[1], HOUSE_AT[2]],
+               "nutcracker": [NUTCRACKER_AT[0], 0.0, -NUTCRACKER_AT[1], NUTCRACKER_AT[2]],
                "light_strings": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in LIGHT_STRINGS],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are
                "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,

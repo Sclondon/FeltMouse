@@ -12,7 +12,7 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
 - **Controls, all on screen**: the stick (bottom left) walks him, with a bounce in his step and a trail of dust puffs;
   the jump button hops him (onto the rolling pin, the presents or the cookie plate too; landing on his mug takes him
   home); the interact button shows what it will do: beside his mug a mug (go home: he sits down into the foam, ducks
-  under and pops out again), anywhere else his candy (he brings it out and tosses it). Drag anywhere else to look
+  under and pops out again), beside the nutcracker a split walnut (he cracks it); anywhere else his candy (he brings it out and tosses it). Drag anywhere else to look
   about, pinch or wheel to come closer. Keys as extras: WASD or arrows, Space to jump, E to interact.
 - **Run**: `godot --path C:Projectsrontrangeinstitutegameseltmouse`.
 
@@ -50,6 +50,8 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
 - **The gingerbread house** is GameCommon's cottage (`gingerbread_house/`, `kit.sh install godot/gingerbread-house`) on its
   cake board, windows glowing (painted, no light); `_keep_on_counter` asks it to keep him out of its walls, and the
   doorway is left open for him.
+- **The nutcracker** is GameCommon's soldier (`nutcracker/`, `kit.sh install godot/nutcracker`), smaller than life, a
+  walnut in his jaw; beside him the interact button shows a split walnut and has him crack it.
 - **The candle** is GameCommon's candle component (`candle/`, `kit.sh install godot/candle`): a cream pillar ringed with
   holly, with its own flame and flickering light, stood at the place the kitchen build writes to `data/kitchen.json`.
 - **The sink** under the window is a basin let into the counter (the counter top is in pieces round it) with a tap; he

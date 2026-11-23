@@ -70,6 +70,8 @@ const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in f
 const LIGHT_STRING_ENERGY := 0.07  ## each swag's one real light (the lights component multiplies it by the scale)
 const TREE_HEIGHT := 0.29  ## the little tree's height in real metres (it must clear the cabinets above it)
 const HOUSE_SIZE := 10.5  ## the gingerbread house: this game's units to one of its metres (12.5 is life size; a little under, to fit by the mug)
+const NUTCRACKER_SIZE := 7.5  ## the nutcracker: this game's units to one of his metres (12.5 is life size, 47 cm; he must fit under the cabinets)
+const NUT_REACH := 2.2       ## how near the nutcracker the interact button means "crack the walnut"
 
 ## How he is posed at one moment.
 class Pose:
@@ -133,6 +135,7 @@ var _landed := 0.0  # 1 as he lands, fading: the squash
 var _dust: CloudPuffs
 var _tree: Node3D
 var _house: Node3D
+var _nutcracker: Node3D
 
 
 func _ready() -> void:
@@ -475,6 +478,20 @@ func _build_stage() -> void:
 		add_child(house)
 		_house = house
 
+	# the nutcracker: GameCommon's soldier, smaller than life to stand under the cabinets, a walnut in his jaw; beside
+	# him the interact button has him crack it
+	if _walk.has("nutcracker"):
+		var post: Array = _walk["nutcracker"]
+		var nut := Nutcracker.make(Nutcracker.Kind.SOLDIER, Nutcracker.Palette.CLASSIC, NUTCRACKER_SIZE, 7)
+		nut.holds = Nutcracker.Holds.WALNUT
+		nut.low_detail = phone
+		nut.position = Vector3(post[0], post[1], post[2])
+		nut.rotation.y = deg_to_rad(post[3])
+		add_child(nut)
+		var stands: Dictionary = nut.footprint()
+		(_walk["obstacles"] as Array).append([post[0], post[2], float(stands["radius"]) * 0.8, 9.0])
+		_nutcracker = nut
+
 	# a snow storm blowing past outside the window, between the glass and the painted night
 	if _walk.has("window"):
 		var w: Dictionary = _walk["window"]
@@ -604,14 +621,20 @@ func jump() -> void:
 
 ## The interact button: beside his mug it sends him home; anywhere else he brings out his candy and tosses it.
 func interact() -> void:
-	if what_interact() == "home":
-		go_home()
-	else:
-		toss()
+	match what_interact():
+		"home":
+			go_home()
+		"crack":
+			if act == Act.FREE:
+				_nutcracker.crack()
+		_:
+			toss()
 
 
-## What the interact button would do just now ("home" or "toss"): the button shows it.
+## What the interact button would do just now ("home", "crack" or "toss"): the button shows it.
 func what_interact() -> String:
+	if _nutcracker and _spot.distance_to(_nutcracker.position) < NUT_REACH:
+		return "crack"
 	return "home" if Vector2(_spot.x, _spot.z).length() < MUG_REACH and _spot.y < 0.1 else "toss"
 
 

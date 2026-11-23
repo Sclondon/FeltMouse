@@ -1,8 +1,8 @@
 extends Control
 ## The controls drawn on the screen: the walking stick bottom left, the jump button and the interact button
 ## bottom right. It only draws and measures; scripts/main.gd sorts the touches.
-## The interact button shows what it would do where he stands: a mug beside his mug (go home), his candy
-## anywhere else (toss it). Sizes follow the screen (a phone held upright first): nothing here is in fixed pixels.
+## The interact button shows what it would do where he stands: a mug beside his mug (go home), a split walnut
+## beside the nutcracker (crack it), his candy anywhere else (toss it). Sizes follow the screen (a phone held upright first): nothing here is in fixed pixels.
 
 var game: Node  # main.gd
 
@@ -89,7 +89,15 @@ func _draw() -> void:
 	r = all["interact"][1]
 	draw_circle(b, r, Color(0.15, 0.10, 0.10, 0.55 * fade))
 	draw_arc(b, r, 0.0, TAU, 48, Color(1, 1, 1, 0.7 * fade), u * 0.06, true)
-	if String(game.what_interact()) == "home":
+	if String(game.what_interact()) == "crack":
+		# a walnut, split
+		var shell := Color(0.62, 0.42, 0.22, fade)
+		draw_circle(b + Vector2(-r * 0.2, r * 0.05), r * 0.36, shell)
+		draw_circle(b + Vector2(r * 0.2, r * 0.05), r * 0.36, shell)
+		draw_line(b + Vector2(0, -r * 0.42), b + Vector2(-r * 0.08, -r * 0.1), white, r * 0.09)
+		draw_line(b + Vector2(-r * 0.08, -r * 0.1), b + Vector2(r * 0.08, r * 0.15), white, r * 0.09)
+		draw_line(b + Vector2(r * 0.08, r * 0.15), b + Vector2(0, r * 0.46), white, r * 0.09)
+	elif String(game.what_interact()) == "home":
 		# his mug
 		var brown := Color(0.50, 0.30, 0.16, fade)
 		draw_arc(b + Vector2(r * 0.34, r * 0.12), r * 0.22, -PI / 2.0, PI / 2.0, 16, brown, r * 0.11, true)
