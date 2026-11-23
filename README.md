@@ -44,6 +44,9 @@ cart's `?v=` in the site's games.tsx. The reference photo and concept art (`art_
   pictures painted by the build script, and the cane jar is clear glass.
 - **The presents** are a heap from GameCommon's presents component (`presents/`, `kit.sh install godot/presents`), made
   smaller than life; the game turns the heap's footprints into things he walks round or jumps onto.
+- **The little tree** is GameCommon's Christmas tree (`christmas_tree/`, `kit.sh install godot/christmas-tree`, which uses
+  `godot/pine-tree`, `godot/christmas-lights` and `godot/ornaments`): the tabletop kind in its pot, dressed, kept short
+  (`TREE_HEIGHT`) to stand under the cabinets. He walks round the pot and under the boughs.
 - **The candle** is GameCommon's candle component (`candle/`, `kit.sh install godot/candle`): a cream pillar ringed with
   holly, with its own flame and flickering light, stood at the place the kitchen build writes to `data/kitchen.json`.
 - **The sink** under the window is a basin let into the counter (the counter top is in pieces round it) with a tap; he

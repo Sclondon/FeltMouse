@@ -606,32 +606,9 @@ for k in (-1.7, -0.85, 0.0, 0.85, 1.7):
 blocks(0, 0, 0.66, 0.8)  # (the foam: landing on it takes him home)
 blocks(0.68, 0, 0.2, 0.5)
 
-# a little Christmas tree in a pot
-X, Y = 1.4, 2.4
-put(lathe("TreePot", [(0, 0), (0.55, 0), (0.75, 0.9), (0.82, 0.9), (0.82, 1.05), (0.7, 1.05), (0, 1.0)], "terracotta", segs=28), X, Y)
-put(lathe("TreeSoil", [(0, 0.9), (0.68, 0.9), (0.68, 1.0), (0, 1.02)], "soil", segs=20), X, Y)
-tube("TreeTrunk", [(X, Y, 0.95), (X, Y, 1.5)], 0.13, "trunk")
-tier_z = 1.35
-for i, (r, h) in enumerate(((1.15, 1.2), (0.95, 1.1), (0.72, 1.0), (0.48, 0.9))):
-    def frill(a, rr, zz, _r=r):
-        return rr * (1.0 + (0.10 * math.sin(9 * a + i) if rr > _r * 0.5 else 0.0)), zz
-    put(lathe("TreeTier%d" % i, [(0, tier_z), (r, tier_z + 0.02), (r * 0.55, tier_z + h * 0.55), (0, tier_z + h)],
-              "pine" if i % 2 == 0 else "pine_dark", segs=36, mod=frill), X, Y)
-    for b in range(5 - i):
-        a = math.tau * (b / (5 - i)) + i * 0.9
-        ellipsoid("Bauble%d_%d" % (i, b), (X + math.sin(a) * r * 0.86, Y - math.cos(a) * r * 0.86, tier_z + 0.12),
-                  (0.12, 0.12, 0.12), GLOWS[(b + i) % len(GLOWS)], subsurf=0)
-    tier_z += h * 0.62
-TREE_TOP = tier_z + 0.42
-star = []
-for i in range(10):
-    a = math.tau * i / 10 + math.pi / 2
-    rr = 0.3 if i % 2 == 0 else 0.13
-    star.append((math.cos(a) * rr, math.sin(a) * rr))
-prism("TreeStar", star, -0.05, 0.05, "glow_yellow",
-      Matrix.Translation((X, Y, TREE_TOP + 0.12)) @ Matrix.Rotation(math.radians(90), 4, "X"))
-LAMPS.append(("Lamp_glow_yellow_star", Vector((X, Y - 0.6, TREE_TOP))))
-blocks(X, Y, 0.85)  # (only the pot: he is short enough to walk under the branches)
+# a little Christmas tree in a pot: GameCommon's Christmas tree (needles, pot, lights, ornaments, star), stood here by
+# the game (scripts/main.gd), which keeps him out of its pot
+TREE_AT = (1.4, 2.4)
 
 # a gingerbread house
 X, Y, TURN = 2.3, 0.4, -12.0
@@ -761,6 +738,7 @@ with open(os.path.join(ROOT, "data", "kitchen.json"), "w") as f:
                "garland": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in GARLAND],
                "candle": [CANDLE_AT[0], 0.0, -CANDLE_AT[1]],
                "presents": [PRESENTS_AT[0], 0.0, -PRESENTS_AT[1]],
+               "tree": [TREE_AT[0], 0.0, -TREE_AT[1]],
                "light_strings": [[[round(p.x, 3), round(p.z, 3), round(-p.y, 3)] for p in line] for line in LIGHT_STRINGS],
                # the window, for the snow: its middle, its size, how far back the glass and the painted night are
                "window": {"x": WMX, "y": WMZ, "wide": WIN_R - WIN_L, "tall": WIN_T - WIN_B, "glass": -WALL,

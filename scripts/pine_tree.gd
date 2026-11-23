@@ -43,6 +43,23 @@ extends Resource
 @export_range(0.0, 1.0) var snow := 0.0
 @export var snow_colour := Color(0.94, 0.96, 1.0)
 @export var seed := 1
+## --- Added 2026-11-22 for the Christmas tree component; each leaves an existing tree exactly as it was at its default. ---
+## How big the needles are drawn against the tree: the needle shader counts in metres (a needle 7 cm, branchlets
+## 13 cm apart, right for a 10 m pine), so a 2 m room tree wants about 0.4 and a 45 cm tabletop one about 0.25.
+## 1 (the default) as before; smaller, finer needles and more of them; larger, coarser.
+@export_range(0.05, 4.0, 0.01, "or_greater") var needle_scale := 1.0
+## How much the branches rise from the trunk towards their tips, as a fir's do (more so up the tree): 0 (the
+## default) straight out before they droop, 0.4 swept up like a Christmas tree, 1 steeply up.
+@export_range(0.0, 1.5) var lift := 0.0
+## How big the dark mass of needles inside the crown is: 1 (the default) as before, 0 none at all (a sparse tree
+## whose trunk and branches show), more for a tree clipped solid.
+@export_range(0.0, 1.6) var inner := 1.0
+## Wood showing down the middle of every frond: the radius of a solid branch at the trunk, metres, thinning to its
+## tip. 0 (the default) none, only the twig drawn on the needle cards.
+@export_range(0.0, 0.1, 0.001, "or_greater") var branch_wood := 0.0
+## Bends the top of the tree over towards +x, as a sapling bows under a weight: the tip ends this share of the
+## height to the side (and a little lower). 0 (the default) straight.
+@export_range(-0.8, 0.8) var bend := 0.0
 ## What to draw it with. Empty: the needle shader (see NEEDLES), which takes the vertex colours.
 @export var material: Material
 
@@ -52,12 +69,14 @@ static var _cache := {}
 ## Forgets every built mesh (a tool that rebuilds a tree at each change would otherwise keep them all).
 static func clear_cache() -> void:
 	_cache.clear()
+	_frond_lists.clear()
 
 
 ## The settings as a key (for sharing built meshes).
 func _key(variant: int) -> String:
 	return "%s|%d" % [var_to_str([_steps, height, trunk_radius, crown_base, whorls, branches, spread, droop, taper, fullness, sprigs, wildness, lean,
-		bark, needles_inner, needles_outer, tips, snow, snow_colour, seed]).hash(), variant]
+		bark, needles_inner, needles_outer, tips, snow, snow_colour, seed,
+		needle_scale, lift, inner, branch_wood, bend]).hash(), variant]
 
 
 ## The tree's mesh, built once for each variant and kept.
@@ -161,6 +180,9 @@ const float SPACING = 0.017;
 const float NEEDLE = 0.07;
 
 uniform float sway : hint_range(0.0, 0.3) = 0.04;
+// A push on every frond, more towards its tip and a little different for each (metres at the tip of a frond a
+// metre long): for a game to bob the boughs when the tree is bumped. Zero (the default) does nothing.
+uniform vec3 bob = vec3(0.0);
 
 varying float card;
 varying float half_width;
@@ -189,6 +211,7 @@ void vertex() {
 		float bend = s * s * UV2.y * sway;
 		float t = TIME * 1.1 + dot(here.xz, vec2(0.13, 0.11)) + here.y * 0.05;
 		VERTEX += vec3(sin(t) * 0.6, sin(t * 1.7 + 0.8), cos(t * 0.8) * 0.6) * bend;
+		VERTEX += bob * (s * s * UV2.y * (0.7 + 0.6 * hash(floor(UV2.y * 977.0))));
 	}
 }
 
@@ -256,12 +279,54 @@ static var _needles: ShaderMaterial
 func _material() -> Material:
 	if material:
 		return material
+	return _shared_needles()
+
+
+static func _shared_needles() -> ShaderMaterial:
 	if _needles == null:
 		var shader := Shader.new()
 		shader.code = NEEDLES
 		_needles = ShaderMaterial.new()
 		_needles.shader = shader
 	return _needles
+
+
+## A material of the needle shader with settings of its own (`sway`, `bob`), for a tree that should not share
+## them with every other pine: set it as a tree's `material`. It is the same shader, so no new program is compiled.
+static func needle_material() -> ShaderMaterial:
+	var own := ShaderMaterial.new()
+	own.shader = _shared_needles().shader
+	return own
+
+
+## Every frond of the tree as built (variant as for `mesh`), for hanging things on it or winding things round it:
+## for each {"base": where it leaves the trunk, "tip", "line": its points from base to tip, "length", "out": the
+## level direction it grows in, "up_tree": 0 at the lowest whorl .. 1 at the top, "half": how far its needles reach
+## to each side at its widest, "leader": true for the one upright frond at the very top}. In the mesh's own space.
+func fronds(variant := 0) -> Array[Dictionary]:
+	var key := _key(variant)
+	if not _frond_lists.has(key):
+		_log = []
+		_logging = true
+		_cache[key] = _build(seed * 7919 + variant * 104729)
+		_logging = false
+		_frond_lists[key] = _log
+		_log = []
+	return _frond_lists[key]
+
+
+static var _frond_lists := {}
+var _logging := false
+var _log: Array[Dictionary] = []
+
+
+## A point of the straight tree put where it is in the leaning, bent one.
+func _place(tilt: Basis, p: Vector3, top: float) -> Vector3:
+	if bend != 0.0:
+		var share := clampf(p.y / top, 0.0, 1.3)
+		p.x += bend * top * share * share * share
+		p.y -= absf(bend) * top * 0.45 * share * share * share * share
+	return tilt * p
 
 
 func _build(variant_seed: int) -> ArrayMesh:
@@ -299,7 +364,7 @@ func _build(variant_seed: int) -> ArrayMesh:
 func _fill(st: SurfaceTool, tilt: Basis, first: float, top: float, rng: RandomNumberGenerator) -> void:
 	var sides := 11
 	var rings := maxi(whorls, 4)
-	var base_r := spread * top * 0.5 * 0.62
+	var base_r := spread * top * 0.5 * 0.62 * inner
 	var radii: Array = []
 	for r in rings + 1:
 		var t := float(r) / rings
@@ -308,6 +373,8 @@ func _fill(st: SurfaceTool, tilt: Basis, first: float, top: float, rng: RandomNu
 			# (ragged: in and out between the fronds, more so lower down)
 			row.append(base_r * pow(1.0 - t, taper) * rng.randf_range(0.78, 1.12) + top * 0.012)
 		radii.append(row)
+	if inner <= 0.0:
+		return
 	for r in rings:
 		var t0 := float(r) / rings
 		var t1 := float(r + 1) / rings
@@ -316,10 +383,10 @@ func _fill(st: SurfaceTool, tilt: Basis, first: float, top: float, rng: RandomNu
 		for s in sides:
 			var u0 := s * TAU / sides
 			var u1 := (s + 1) * TAU / sides
-			var a := tilt * Vector3(cos(u0) * radii[r][s], y0, sin(u0) * radii[r][s])
-			var b := tilt * Vector3(cos(u1) * radii[r][(s + 1) % sides], y0, sin(u1) * radii[r][(s + 1) % sides])
-			var c := tilt * Vector3(cos(u0) * radii[r + 1][s], y1, sin(u0) * radii[r + 1][s])
-			var d := tilt * Vector3(cos(u1) * radii[r + 1][(s + 1) % sides], y1, sin(u1) * radii[r + 1][(s + 1) % sides])
+			var a := _place(tilt, Vector3(cos(u0) * radii[r][s], y0, sin(u0) * radii[r][s]), top)
+			var b := _place(tilt, Vector3(cos(u1) * radii[r][(s + 1) % sides], y0, sin(u1) * radii[r][(s + 1) % sides]), top)
+			var c := _place(tilt, Vector3(cos(u0) * radii[r + 1][s], y1, sin(u0) * radii[r + 1][s]), top)
+			var d := _place(tilt, Vector3(cos(u1) * radii[r + 1][(s + 1) % sides], y1, sin(u1) * radii[r + 1][(s + 1) % sides]), top)
 			var n0 := tilt * Vector3(cos(u0), 0.55, sin(u0)).normalized()
 			var n1 := tilt * Vector3(cos(u1), 0.55, sin(u1)).normalized()
 			var inner := needles_inner.lerp(needles_outer, 0.25)
@@ -331,15 +398,15 @@ func _fill(st: SurfaceTool, tilt: Basis, first: float, top: float, rng: RandomNu
 	for s in sides:
 		var u0 := s * TAU / sides
 		var u1 := (s + 1) * TAU / sides
-		var a := tilt * Vector3(cos(u0) * radii[0][s], y, sin(u0) * radii[0][s])
-		var b := tilt * Vector3(cos(u1) * radii[0][(s + 1) % sides], y, sin(u1) * radii[0][(s + 1) % sides])
+		var a := _place(tilt, Vector3(cos(u0) * radii[0][s], y, sin(u0) * radii[0][s]), top)
+		var b := _place(tilt, Vector3(cos(u1) * radii[0][(s + 1) % sides], y, sin(u1) * radii[0][(s + 1) % sides]), top)
 		var dark := needles_inner.darkened(0.2)
-		_tri(st, [a, tilt * Vector3(0, y + 0.3, 0), b], [Vector3.DOWN, Vector3.DOWN, Vector3.DOWN], [dark, dark, dark])
+		_tri(st, [a, _place(tilt, Vector3(0, y + 0.3, 0), top), b], [Vector3.DOWN, Vector3.DOWN, Vector3.DOWN], [dark, dark, dark])
 
 
 func _trunk(st: SurfaceTool, top: float, tilt: Basis) -> void:
 	var sides := 7
-	var rings := 4
+	var rings := 4 if bend == 0.0 else 12  # (a bent trunk needs the rings to curve with)
 	for r in rings:
 		var a := float(r) / rings
 		var b := float(r + 1) / rings
@@ -351,10 +418,10 @@ func _trunk(st: SurfaceTool, top: float, tilt: Basis) -> void:
 		for s in sides:
 			var u0 := s * TAU / sides
 			var u1 := (s + 1) * TAU / sides
-			var p00 := tilt * Vector3(cos(u0) * ra, ya, sin(u0) * ra)
-			var p01 := tilt * Vector3(cos(u1) * ra, ya, sin(u1) * ra)
-			var p10 := tilt * Vector3(cos(u0) * rb, yb, sin(u0) * rb)
-			var p11 := tilt * Vector3(cos(u1) * rb, yb, sin(u1) * rb)
+			var p00 := _place(tilt, Vector3(cos(u0) * ra, ya, sin(u0) * ra), top)
+			var p01 := _place(tilt, Vector3(cos(u1) * ra, ya, sin(u1) * ra), top)
+			var p10 := _place(tilt, Vector3(cos(u0) * rb, yb, sin(u0) * rb), top)
+			var p11 := _place(tilt, Vector3(cos(u1) * rb, yb, sin(u1) * rb), top)
 			var n0 := tilt * Vector3(cos(u0), 0.2, sin(u0)).normalized()
 			var n1 := tilt * Vector3(cos(u1), 0.2, sin(u1)).normalized()
 			var shade := bark.darkened(0.15 * float(s % 2))
@@ -378,12 +445,47 @@ func _frond(st: SurfaceTool, tilt: Basis, base: Vector3, angle: float, length: f
 			p.y -= hang * length * (0.55 * s * s - 0.12 * pow(s, 4.0) * 3.0) + 0.02 * length
 		else:
 			p = base + Vector3.UP * length * s
-		points.append(tilt * p)
+		if lift != 0.0 and hang >= 0.0:
+			p.y += lift * length * s * (0.5 + up_tree)
+		points.append(_place(tilt, p, top))
 	var axis_up := tilt * (Vector3.UP if hang >= 0.0 else out)
 	var half := length * fullness * 0.62
 	var cards := 2 + maxi(sprigs - 1, 0)
 	for c in cards:
 		_card(st, points, half * (1.0 if c == 0 else 0.65), c * PI / cards, axis_up, up_tree, top)
+	if branch_wood > 0.0:
+		_wood(st, points, branch_wood * lerpf(1.0, 0.5, up_tree))
+	if _logging:
+		_log.append({"base": points[0], "tip": points[steps], "line": points.duplicate(), "length": length, "out": tilt * out,
+			"up_tree": up_tree, "half": half, "leader": hang < 0.0})
+
+
+## The wood of a frond: a thin three-sided branch along its line, thinning to the tip.
+func _wood(st: SurfaceTool, line: Array[Vector3], radius: float) -> void:
+	var count := line.size()
+	var dark := bark.darkened(0.25)
+	for k in count - 1:
+		var ahead := (line[k + 1] - line[k]).normalized()
+		var any := Vector3.UP if absf(ahead.y) < 0.9 else Vector3.RIGHT
+		var x := ahead.cross(any).normalized()
+		var y := x.cross(ahead)
+		var r0 := radius * lerpf(1.0, 0.2, float(k) / (count - 1))
+		var r1 := radius * lerpf(1.0, 0.2, float(k + 1) / (count - 1))
+		for s in 3:
+			var n0 := x * cos(s * TAU / 3.0) + y * sin(s * TAU / 3.0)
+			var n1 := x * cos((s + 1) * TAU / 3.0) + y * sin((s + 1) * TAU / 3.0)
+			var a := line[k] + n0 * r0
+			var b := line[k] + n1 * r0
+			var c := line[k + 1] + n0 * r1
+			var d := line[k + 1] + n1 * r1
+			# (wound from each face's own outward side: clockwise as seen is Godot's front)
+			var face := (n0 + n1).normalized()
+			if (c - a).cross(b - a).dot(face) >= 0.0:
+				_tri(st, [a, b, c], [n0, n1, n0], [dark, dark, bark])
+				_tri(st, [b, d, c], [n1, n1, n0], [dark, bark, bark])
+			else:
+				_tri(st, [a, c, b], [n0, n0, n1], [dark, bark, dark])
+				_tri(st, [b, c, d], [n1, n0, n1], [dark, bark, bark])
 
 
 ## A garland, bough or wreath of this pine: the same needle fronds, sprouting all along `line` (any curve, as
@@ -472,8 +574,9 @@ func _card(st: SurfaceTool, line: Array[Vector3], half: float, roll: float, up: 
 		colour = colour.lightened(up_tree * 0.06)
 		if snow > 0.0 and roll == 0.0:
 			colour = colour.lerp(snow_colour, snow * 0.6 * smoothstep(0.2, 0.7, normal.y))
-		colour.a = clampf(half * 0.5, 0.0, 1.0)
-		edges.append([p - side * half * wide, p + side * half * wide, Vector2(along[k], -wide), Vector2(along[k], wide), normal, colour])
+		colour.a = clampf(half * 0.5 / needle_scale, 0.0, 1.0)
+		# (the shader counts needles in metres along the card: a smaller `needle_scale` tells it a longer card)
+		edges.append([p - side * half * wide, p + side * half * wide, Vector2(along[k] / needle_scale, -wide), Vector2(along[k] / needle_scale, wide), normal, colour])
 	for k in count - 1:
 		var e0: Array = edges[k]
 		var e1: Array = edges[k + 1]
@@ -483,7 +586,7 @@ func _card(st: SurfaceTool, line: Array[Vector3], half: float, roll: float, up: 
 			st.set_color(e[5])
 			st.set_normal(e[4])
 			st.set_uv(e[2 + i])
-			st.set_uv2(Vector2(1.0, total))
+			st.set_uv2(Vector2(1.0, total / needle_scale))
 			st.add_vertex(e[i])
 
 

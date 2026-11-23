@@ -68,6 +68,7 @@ const STEP_UP := 0.25      ## low enough to walk up onto without a jump (the coo
 const MUG_REACH := 2.3     ## how near his mug the interact button means "go home"
 const HOP_SPOT := Vector3(0.0, 0.0, 1.9)  ## where he lands on the counter, in front of the mug
 const LIGHT_STRING_ENERGY := 0.07  ## each swag's one real light (the lights component multiplies it by the scale)
+const TREE_HEIGHT := 0.29  ## the little tree's height in real metres (it must clear the cabinets above it)
 
 ## How he is posed at one moment.
 class Pose:
@@ -129,6 +130,7 @@ var _rise := 0.0    # how fast he is going up (jumping) or down
 var _trail := 0.0   # seconds of dust still to leave in the air behind a jump
 var _landed := 0.0  # 1 as he lands, fading: the squash
 var _dust: CloudPuffs
+var _tree: Node3D
 
 
 func _ready() -> void:
@@ -442,6 +444,21 @@ func _build_stage() -> void:
 			var half: Vector2 = mark["half"]
 			var reach: float = mark["radius"] if mark["round"] else (half.x + half.y) * 0.5
 			(_walk["obstacles"] as Array).append([middle.x, middle.z, reach, float(mark["height"])])
+
+	# the little Christmas tree: GameCommon's tabletop tree in its pot, dressed with a string of small bulbs, ornaments
+	# and a star, short enough to stand under the cabinets; its pot is something he walks round, its boughs he walks under
+	if _walk.has("tree"):
+		var foot: Array = _walk["tree"]
+		var tree := ChristmasTree.dressed(ChristmasTree.Kind.TABLETOP, ChristmasTree.Palette.CLASSIC, 7, 12.5)
+		tree.height = TREE_HEIGHT
+		tree.presents = false  # (the presents are in their own heap along the counter)
+		tree.real_lights = 1
+		tree.low_dressing = phone
+		tree.position = Vector3(foot[0], foot[1], foot[2])
+		add_child(tree)
+		var pot: Dictionary = tree.footprint()
+		(_walk["obstacles"] as Array).append([foot[0], foot[2], float(pot["radius"]), 9.0])
+		_tree = tree
 
 	# a snow storm blowing past outside the window, between the glass and the painted night
 	if _walk.has("window"):
